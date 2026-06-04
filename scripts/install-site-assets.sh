@@ -158,4 +158,4 @@ else
   gh pr create --base "$GH_BRANCH" --head "$BR" --title "$PR_TITLE" --body "$PR_BODY" || \
     echo "Branch pushed; open the PR manually."
 fi
-echo "NOTE: add the AUTOGEN markers to ${LLMS_TXT} and backfill post 'description:' before first merge (Spec B §1.1)."
+echo "NOTE: add the AUTOGEN markers to ${LLMS_TXT} and backfill post 'excerpt:' before first merge (Spec B §1.1)."
