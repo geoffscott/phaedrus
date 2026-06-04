@@ -3,10 +3,22 @@ set -euo pipefail; source scripts/lib.sh; load_site
 require_cmd git; require_cmd gh
 URL=$(gcloud functions describe "$PROXY_FN" --region="$GCP_REGION" --gen2 --format='value(serviceConfig.uri)')
 ROOT="$PWD"; BR="phaedrus/site-assets"
-TMP=$(mktemp -d); git clone "https://github.com/${GH_OWNER}/${GH_REPO}.git" "$TMP"; cd "$TMP"
-# reuse the branch if it exists (updates the open PR), else branch off the base
+# gh's GH_REPO env var collides with our config GH_REPO (which is the repo
+# name only; gh expects "owner/repo"). Pass GH_REPO_FULL via -R to gh.
+GH_REPO_FULL="${GH_OWNER}/${GH_REPO}"
+TMP=$(mktemp -d); git clone "https://github.com/${GH_REPO_FULL}.git" "$TMP"; cd "$TMP"
+# If the branch exists and has unmerged commits, reuse it (updates the open
+# PR). If it's fully merged into the base — i.e., last run's PR was merged
+# but GitHub didn't auto-delete the branch — start fresh from base so we
+# don't sit on stale state. If it doesn't exist, also start from base.
 if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
-  git fetch origin "$BR"; git checkout "$BR"
+  git fetch origin "$BR" "$GH_BRANCH"
+  if git merge-base --is-ancestor "origin/$BR" "origin/$GH_BRANCH"; then
+    echo "Branch ${BR} is fully merged into ${GH_BRANCH}; starting fresh from base."
+    git checkout -B "$BR" "origin/${GH_BRANCH}"
+  else
+    git checkout -B "$BR" "origin/$BR"
+  fi
 else
   git checkout -B "$BR" "origin/${GH_BRANCH}"
 fi
@@ -88,11 +100,11 @@ EOF
 # Only an OPEN PR counts as "already exists" — a previously-merged or closed
 # PR on this same branch must not block us from opening a fresh one for the
 # next round of changes.
-OPEN_PR=$(gh pr list --head "$BR" --state open --json number -q '.[0].number' 2>/dev/null || true)
+OPEN_PR=$(gh pr list -R "$GH_REPO_FULL" --head "$BR" --state open --json number -q '.[0].number' 2>/dev/null || true)
 if [ -n "$OPEN_PR" ]; then
   echo "Open PR #${OPEN_PR} for ${BR} already exists; leaving its description as-is. Edit on GitHub if you want to refresh it."
 else
-  gh pr create --base "$GH_BRANCH" --head "$BR" --title "$PR_TITLE" --body "$PR_BODY" || \
+  gh pr create -R "$GH_REPO_FULL" --base "$GH_BRANCH" --head "$BR" --title "$PR_TITLE" --body "$PR_BODY" || \
     echo "Branch pushed; open the PR manually."
 fi
 echo "NOTE: add the AUTOGEN markers to ${LLMS_TXT} and backfill post 'description:' before first merge (Spec B §1.1)."
