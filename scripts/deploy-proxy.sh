@@ -12,5 +12,20 @@ URL=$(gcloud functions describe "$PROXY_FN" --region="$GCP_REGION" --gen2 --form
 [ -n "$URL" ] || URL=$(gcloud functions describe "$PROXY_FN" --region="$GCP_REGION" --gen2 --format='value(url)')
 gcloud functions deploy "$PROXY_FN" --gen2 --region="$GCP_REGION" --source=services/oauth-proxy \
   --entry-point=decapOauth --update-env-vars="BASE_URL=${URL}"
-echo "PROXY_URL=${URL}"
-echo "→ GitHub OAuth App callback: ${URL}/callback   (also base_url in admin/config.yml)"
+cat <<EOF
+
+================================================================
+  phaedrus oauth-proxy deployed
+================================================================
+  Function URL:          ${URL}
+
+  GitHub OAuth App
+  → Authorization callback URL:
+      ${URL}/callback
+    (paste into the OAuth App's settings on github.com)
+
+  Decap admin/config.yml
+  → base_url:
+      ${URL}
+================================================================
+EOF
