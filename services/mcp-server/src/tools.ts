@@ -29,9 +29,38 @@ function jsonResult(value: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] };
 }
 
-const LensEnum = config.taxonomyTerms.length > 0
-  ? z.enum(config.taxonomyTerms as [string, ...string[]])
-  : z.string();
+// Parse the curated tag vocabulary (_data/tags.yml). Tolerates both the seeded
+// `- name: Foo` form and a bare `- Foo` list, mirroring the naive parsing used
+// elsewhere in this service.
+function parseKnownTags(yamlText: string): Set<string> {
+  const tags = new Set<string>();
+  for (const line of yamlText.split('\n')) {
+    const m = line.match(/^\s*-\s*(?:name:\s*)?(.+?)\s*$/);
+    if (m) {
+      const v = m[1].replace(/^["']|["']$/g, '').trim();
+      if (v) tags.add(v);
+    }
+  }
+  return tags;
+}
+
+// Returns the submitted tags that aren't in the curated vocabulary, or null when
+// no vocabulary file exists yet (so we don't block before one is set up).
+async function unknownTags(tags: string[], ref: string): Promise<string[] | null> {
+  const file = await getFile(config.tagsData, ref);
+  if (!file) return null;
+  const known = parseKnownTags(file.content);
+  if (known.size === 0) return null;
+  return tags.filter((t) => !known.has(t));
+}
+
+function unknownTagsError(unknown: string[]) {
+  return jsonResult({
+    error: 'unknown_tags',
+    unknown,
+    hint: `Tags must exist in ${config.tagsData}. Add them there in a PR before using them on a post.`,
+  });
+}
 
 export function registerTools(server: McpServer): void {
   const p = config.toolPrefix;
@@ -69,12 +98,12 @@ export function registerTools(server: McpServer): void {
     {
       slug: z.string().regex(slugRe, 'lowercase letters, digits, hyphens; no leading/trailing hyphen'),
       title: z.string().min(1),
-      description: z.string().min(1, 'one-line summary used by llms.txt and SEO'),
+      excerpt: z.string().min(1, 'teaser + SEO meta description (1–2 sentences)'),
       body: z.string().min(1, 'post body in Markdown'),
-      authors: z.array(z.string().min(1)).min(1),
-      lens: LensEnum,
+      author: z.string().min(1, 'author id (matches _data/authors.yml / _authors/)'),
+      tags: z.array(z.string().min(1)).min(1, 'at least one tag from the curated vocabulary'),
+      description: z.string().optional(),
       date: z.string().regex(isoDateRe, 'YYYY-MM-DD').optional(),
-      tags: z.array(z.string()).optional(),
       draft: z.boolean().optional(),
     },
     async (args) => {
@@ -88,14 +117,17 @@ export function registerTools(server: McpServer): void {
         return jsonResult({ error: 'already_exists', path, branch });
       }
 
+      const unknown = await unknownTags(args.tags, config.ghBranch);
+      if (unknown && unknown.length) return unknownTagsError(unknown);
+
       const fm: Record<string, string | string[] | boolean> = {
         title: args.title,
         date,
-        description: args.description,
-        authors: args.authors,
-        [config.taxonomyKey]: args.lens,
+        author: args.author,
+        excerpt: args.excerpt,
+        tags: args.tags,
       };
-      if (args.tags && args.tags.length) fm.tags = args.tags;
+      if (args.description) fm.description = args.description;
       if (args.draft) fm.published = false;
 
       const content = renderFrontMatter(fm, args.body);
@@ -112,8 +144,8 @@ export function registerTools(server: McpServer): void {
         body:
           `Authored via phaedrus MCP.\n\n` +
           `- **Slug:** \`${args.slug}\`\n` +
-          `- **Lens:** ${args.lens}\n` +
-          `- **Authors:** ${args.authors.join(', ')}\n` +
+          `- **Author:** ${args.author}\n` +
+          `- **Tags:** ${args.tags.join(', ')}\n` +
           `- **Path:** \`${path}\`\n`,
       });
       return jsonResult({ pr, path, branch, created: !existing });
@@ -127,9 +159,10 @@ export function registerTools(server: McpServer): void {
       path: z.string(),
       body: z.string().optional(),
       title: z.string().optional(),
+      excerpt: z.string().optional(),
+      author: z.string().optional(),
       description: z.string().optional(),
-      tags: z.array(z.string()).optional(),
-      lens: LensEnum.optional(),
+      tags: z.array(z.string().min(1)).min(1).optional(),
       message: z.string().optional(),
     },
     async (args) => {
@@ -146,11 +179,15 @@ export function registerTools(server: McpServer): void {
       const parsed = splitFrontMatter(file.content);
       const data = { ...parsed.data };
       if (args.title) data.title = args.title;
+      if (args.author) data.author = args.author;
+      if (args.excerpt) data.excerpt = args.excerpt;
       if (args.description) data.description = args.description;
-      if (args.lens) data[config.taxonomyKey] = args.lens;
-      const tags: string[] | undefined = args.tags;
       const merged: Record<string, string | string[]> = { ...data };
-      if (tags) merged.tags = tags;
+      if (args.tags) {
+        const unknown = await unknownTags(args.tags, config.ghBranch);
+        if (unknown && unknown.length) return unknownTagsError(unknown);
+        merged.tags = args.tags;
+      }
 
       const newBody = args.body ?? parsed.body;
       const content = renderFrontMatter(merged, newBody);

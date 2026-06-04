@@ -120,7 +120,9 @@ def collect_posts(config: dict) -> list[dict]:
                 continue
             file_date, slug = slug_from_filename(path.name)
             title = fm.get("title") or slug.replace("-", " ").title()
-            description = fm.get("description") or ""
+            # Mirror jekyll-seo-tag: prefer an explicit SEO `description` override,
+            # otherwise fall back to the post's `excerpt` (the canonical hook).
+            description = fm.get("description") or fm.get("excerpt") or ""
             link = permalink_for(config, fm, file_date, slug)
             posts.append({
                 "title": str(title),

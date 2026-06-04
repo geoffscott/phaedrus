@@ -21,11 +21,9 @@ export const config = {
   authorsDir: opt('AUTHORS_DIR', '_authors'),
   authorsData: opt('AUTHORS_DATA', '_data/authors.yml'),
   imagesDir: opt('IMAGES_DIR', 'assets/images/posts'),
-  taxonomyTerms: opt('TAXONOMY_TERMS', '')
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean),
-  taxonomyKey: opt('TAXONOMY_KEY', 'lens'),
+  // Curated tag vocabulary, read from the content repo at request time (not baked
+  // into deploy env). Shared with the Decap Tags relation and check_new_tags.py.
+  tagsData: opt('TAGS_DATA', '_data/tags.yml'),
   toolPrefix: opt('TOOL_PREFIX', 'post_'),
   githubAppId: req('GITHUB_APP_ID'),
   githubAppPrivateKey: req('GITHUB_APP_PRIVATE_KEY'),

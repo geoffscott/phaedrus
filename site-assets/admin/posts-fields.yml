@@ -1,0 +1,20 @@
+# phaedrus canonical posts fields — universal Jekyll core + jekyll-seo-tag convention.
+# Injected at the __POSTS_FIELDS__ marker in admin/config.yml by install-site-assets.sh.
+# Per-site override: drop a complete replacement block at sites/<site>.posts-fields.yml.
+      - { name: title,   label: Title,   widget: string }
+      - { name: date,    label: Date,    widget: datetime }
+      - { name: author,  label: Author,  widget: string, hint: 'Author id (matches _data/authors.yml / _authors/).' }
+      - { name: excerpt, label: Excerpt, widget: text, hint: 'Teaser AND SEO meta description (seo-tag falls back description→excerpt→site.description).' }
+      - name: tags
+        label: Tags
+        widget: relation
+        collection: tag_vocabulary
+        file: tags
+        value_field: 'tags.*.name'
+        search_fields: ['tags.*.name']
+        display_fields: ['tags.*.name']
+        multiple: true
+        min: 1
+        required: true
+        hint: 'Pick from the curated vocabulary. Need a new tag? Add it to _data/tags.yml in this PR.'
+      - { name: body,    label: Body,    widget: markdown }
