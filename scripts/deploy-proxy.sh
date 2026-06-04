@@ -2,7 +2,7 @@
 set -euo pipefail; source scripts/lib.sh; load_site
 : "${GH_CLIENT_ID:?export GH_CLIENT_ID=… (from the GitHub OAuth App)}"
 ( cd services/oauth-proxy
-  gcloud functions deploy "$PROXY_FN" --gen2 --runtime=nodejs20 --region="$GCP_REGION" \
+  gcloud functions deploy "$PROXY_FN" --gen2 --runtime=nodejs22 --region="$GCP_REGION" \
     --source=. --entry-point=decapOauth --trigger-http --allow-unauthenticated \
     --service-account="$PROXY_SA" \
     --set-env-vars="GITHUB_OAUTH_CLIENT_ID=${GH_CLIENT_ID},OAUTH_SCOPE=${OAUTH_SCOPE},ALLOWED_ORIGIN=${SITE_ORIGIN},BASE_URL=PENDING" \

@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "commonjs",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "start": "functions-framework --target=decapOauth"
