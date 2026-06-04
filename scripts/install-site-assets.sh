@@ -13,7 +13,9 @@ fi
 mkdir -p admin .github/workflows scripts
 cp "$ROOT/site-assets/admin/index.html" admin/index.html
 cp "$ROOT/site-assets/workflows/update-llms-txt.yml" .github/workflows/update-llms-txt.yml
+cp "$ROOT/site-assets/workflows/check-new-tags.yml" .github/workflows/check-new-tags.yml
 cp "$ROOT/site-assets/scripts/gen_llms_txt.py" scripts/gen_llms_txt.py
+cp "$ROOT/site-assets/scripts/check_new_tags.py" scripts/check_new_tags.py
 OPTIONS=$(printf '"%s", ' ${TAXONOMY_TERMS//,/ }); OPTIONS="[ ${OPTIONS%, } ]"
 sed -e "s#__REPO__#${GH_OWNER}/${GH_REPO}#" -e "s#__BRANCH__#${GH_BRANCH}#" \
     -e "s#__BASE_URL__#${URL}#" -e "s#__SITE_URL__#${SITE_URL}#" \
@@ -42,7 +44,9 @@ Wires this site into [phaedrus](https://github.com/geoffscott/phaedrus) — a sm
   - Media folder: \`${IMAGES_DIR}\`
   - Taxonomy: **${TAXONOMY_LABEL}** → ${TAXONOMY_TERMS}
 - **\`.github/workflows/update-llms-txt.yml\`** — regenerates \`${LLMS_TXT}\` on every push to \`${GH_BRANCH}\` that touches posts, authors, the site config, or the generator itself. Commits back with \`phaedrus-bot\` as author; no-op when already current.
+- **\`.github/workflows/check-new-tags.yml\`** — runs on every PR touching \`_posts/**\`. If the PR introduces a tag that doesn't appear on any post on \`${GH_BRANCH}\`, posts a sticky comment listing the new tags. **Non-blocking** — just gives reviewers a heads-up so they can spot typos / synonyms before the taxonomy quietly grows.
 - **\`scripts/gen_llms_txt.py\`** — site-agnostic generator. Reads this repo's own \`_config.yml\` for the permalink template and any extra collections; falls back to Jekyll defaults.
+- **\`scripts/check_new_tags.py\`** — the detector used by the check-new-tags workflow above.
 
 ## What this enables
 

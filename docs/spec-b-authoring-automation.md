@@ -39,6 +39,14 @@ Runs on push to the default branch when any of `_posts/`, `_authors/`, `_data/au
 
 Every post **must** declare a one-line `description:` in front matter. That's the line that ends up in `llms.txt`, the SEO meta description, and (typically) the social preview. `install-site-assets.sh` prints a reminder to backfill `description:` on existing posts before the first merge.
 
+## 1.2. New-tag PR check
+
+`site-assets/workflows/check-new-tags.yml` runs on every PR touching `_posts/**`. It runs `scripts/check_new_tags.py`, which compares the set of `tags:` across posts on the PR head against the set on the base branch, and **posts a sticky PR comment** listing any net-new tags and which post introduced each one.
+
+The check is **deliberately non-blocking** — it always exits 0. The rationale: tags are free-form by design (anyone can add one), but adding a new tag is an irreversible-ish expansion of the site's taxonomy, so reviewers should *see* it happen even if they don't have to *approve* it as a separate gate. Synonyms and typos are the things this catches early ("Strategy" vs "strategy", "post-mortem" vs "postmortem").
+
+Uses `marocchino/sticky-pull-request-comment@v2` to keep one comment per PR (re-runs update in place; PRs that no longer introduce new tags get their comment cleared).
+
 ## 2. Author contract
 
 All three authoring doors share the same shape:
