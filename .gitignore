@@ -1,0 +1,9 @@
+sites/*.env
+!sites/example.env
+*.pem
+*.key
+.secrets/
+.env.local
+node_modules/
+__pycache__/
+services/mcp-server/dist/

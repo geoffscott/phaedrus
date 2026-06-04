@@ -1,0 +1,17 @@
+{
+  "name": "phaedrus-oauth-proxy",
+  "version": "1.0.0",
+  "description": "Decap CMS external OAuth client (GitHub) for phaedrus — runs as a Cloud Functions gen2 HTTP function.",
+  "main": "index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "start": "functions-framework --target=decapOauth"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.0"
+  },
+  "license": "MIT"
+}
