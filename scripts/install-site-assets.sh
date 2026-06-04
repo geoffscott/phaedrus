@@ -3,10 +3,19 @@ set -euo pipefail; source scripts/lib.sh; load_site
 require_cmd git; require_cmd gh
 URL=$(gcloud functions describe "$PROXY_FN" --region="$GCP_REGION" --gen2 --format='value(serviceConfig.uri)')
 ROOT="$PWD"; BR="phaedrus/site-assets"
-TMP=$(mktemp -d); git clone "https://github.com/${GH_OWNER}/${GH_REPO}.git" "$TMP"; cd "$TMP"
-# reuse the branch if it exists (updates the open PR), else branch off the base
+TMP=$(mktemp -d); git clone "https://github.com/${GH_OWNER}/${CONTENT_REPO}.git" "$TMP"; cd "$TMP"
+# If the branch exists with unmerged commits, reuse it (updates the open PR).
+# If it's fully merged into the base — last run's PR was merged but the
+# branch wasn't deleted — start fresh from base so we don't sit on stale
+# state. If it doesn't exist, also start from base.
 if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
-  git fetch origin "$BR"; git checkout "$BR"
+  git fetch origin "$BR" "$GH_BRANCH"
+  if git merge-base --is-ancestor "origin/$BR" "origin/$GH_BRANCH"; then
+    echo "Branch ${BR} is fully merged into ${GH_BRANCH}; starting fresh from base."
+    git checkout -B "$BR" "origin/${GH_BRANCH}"
+  else
+    git checkout -B "$BR" "origin/$BR"
+  fi
 else
   git checkout -B "$BR" "origin/${GH_BRANCH}"
 fi
@@ -17,7 +26,7 @@ cp "$ROOT/site-assets/workflows/check-new-tags.yml" .github/workflows/check-new-
 cp "$ROOT/site-assets/scripts/gen_llms_txt.py" scripts/gen_llms_txt.py
 cp "$ROOT/site-assets/scripts/check_new_tags.py" scripts/check_new_tags.py
 OPTIONS=$(printf '"%s", ' ${TAXONOMY_TERMS//,/ }); OPTIONS="[ ${OPTIONS%, } ]"
-sed -e "s#__REPO__#${GH_OWNER}/${GH_REPO}#" -e "s#__BRANCH__#${GH_BRANCH}#" \
+sed -e "s#__REPO__#${GH_OWNER}/${CONTENT_REPO}#" -e "s#__BRANCH__#${GH_BRANCH}#" \
     -e "s#__BASE_URL__#${URL}#" -e "s#__SITE_URL__#${SITE_URL}#" \
     -e "s#__IMAGES_DIR__#${IMAGES_DIR}#" \
     -e "s#__TAXONOMY_LABEL__#${TAXONOMY_LABEL}#" -e "s#__TAXONOMY_KEY__#${TAXONOMY_KEY}#" \
@@ -39,7 +48,7 @@ Wires this site into [phaedrus](https://github.com/geoffscott/phaedrus) — a sm
 
 - **\`admin/index.html\`** — Decap CMS loader (the page served at \`/admin/\`).
 - **\`admin/config.yml\`** — Decap config generated for this site:
-  - Backend: GitHub (\`${GH_OWNER}/${GH_REPO}\`, branch \`${GH_BRANCH}\`)
+  - Backend: GitHub (\`${GH_OWNER}/${CONTENT_REPO}\`, branch \`${GH_BRANCH}\`)
   - OAuth proxy: \`${URL}\`
   - Media folder: \`${IMAGES_DIR}\`
   - Taxonomy: **${TAXONOMY_LABEL}** → ${TAXONOMY_TERMS}

@@ -2,6 +2,15 @@
 set -euo pipefail
 load_site() {
   set -a; source "sites/${SITE}.env"; set +a
+  # Back-compat: GH_REPO was the original name for the content-repo identifier.
+  # gh CLI also recognizes GH_REPO (expecting "owner/repo"), so leaving it
+  # exported breaks gh commands. Migrate transparently and always unset.
+  if [ -z "${CONTENT_REPO:-}" ] && [ -n "${GH_REPO:-}" ]; then
+    echo "note: sites/${SITE}.env still uses GH_REPO; rename to CONTENT_REPO. (GH_REPO collides with gh CLI.)" >&2
+    export CONTENT_REPO="$GH_REPO"
+  fi
+  unset GH_REPO
+  test -n "${CONTENT_REPO:-}" || { echo "Missing CONTENT_REPO in sites/${SITE}.env"; exit 1; }
   : "${GCP_PROJECT:=$(gcloud config get-value project 2>/dev/null)}"
   test -n "${GCP_PROJECT}" || { echo "No GCP project set (gcloud config set project …)"; exit 1; }
   export GCP_PROJECT
