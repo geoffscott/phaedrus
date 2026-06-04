@@ -85,8 +85,12 @@ Re-running \`make install-site-assets SITE=…\` on phaedrus pushes new commits 
 phaedrus is MIT-licensed. Site content keeps whatever license this repo declares.
 EOF
 )
-if gh pr view "$BR" >/dev/null 2>&1; then
-  echo "PR for ${BR} already exists; leaving its description as-is. Edit on GitHub if you want to refresh it."
+# Only an OPEN PR counts as "already exists" — a previously-merged or closed
+# PR on this same branch must not block us from opening a fresh one for the
+# next round of changes.
+OPEN_PR=$(gh pr list --head "$BR" --state open --json number -q '.[0].number' 2>/dev/null || true)
+if [ -n "$OPEN_PR" ]; then
+  echo "Open PR #${OPEN_PR} for ${BR} already exists; leaving its description as-is. Edit on GitHub if you want to refresh it."
 else
   gh pr create --base "$GH_BRANCH" --head "$BR" --title "$PR_TITLE" --body "$PR_BODY" || \
     echo "Branch pushed; open the PR manually."
