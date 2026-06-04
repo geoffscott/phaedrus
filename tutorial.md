@@ -15,8 +15,32 @@ make bootstrap SITE=<key>
 ```
 
 ## Create the two GitHub apps (manual)
-1. **OAuth App** (Decap login): callback = the `PROXY_URL/callback` printed after deploy. Copy Client ID + secret.
-2. **GitHub App** (MCP commits): Contents RW + Pull requests RW, installed on your content repo's owner. Note App ID; download the private-key PEM.
+
+GitHub apps are owned by a **user account or an organization** (not a repo). Recommended: create both under the same account that owns your content repo (your `GH_OWNER`) so bot attribution stays on-brand and ownership transfers with the org. Your personal account also works if you don't have org-owner permissions.
+
+### OAuth App (Decap login)
+`Settings → Developer settings → OAuth Apps → New OAuth App`
+
+- **Homepage URL:** your `SITE_URL`.
+- **Authorization callback URL:** `<PROXY_URL>/callback`. `PROXY_URL` is printed after `make deploy SITE=<key>`, so set a placeholder (e.g. `https://example.com/callback`) now and update it after deploy.
+- Save, then **copy the Client ID** and **generate a Client Secret** — copy that too (you only see it once).
+- Export them for the next steps: `GH_CLIENT_ID` (used by `make deploy`) and `GH_CLIENT_SECRET` (used by `make secrets`).
+
+### GitHub App (MCP commits)
+`Settings → Developer settings → GitHub Apps → New GitHub App`
+
+- **Homepage URL:** your `SITE_URL`.
+- **Callback URL:** leave blank (this field is for OAuth Apps — a common confusion).
+- **Webhook → Active:** uncheck.
+- **Permissions → Repository:**
+  - Contents: **Read & write**
+  - Pull requests: **Read & write**
+  - Nothing else.
+- **Where can this GitHub App be installed:** "Only on this account" is fine.
+- Save, then note the **App ID** and **generate + download a private-key PEM** (one-time download — store it securely; this becomes `GH_APP_KEY_FILE`).
+- **Install** the app on the account that owns your content repo (`GH_OWNER`), scoped to that single repo.
+
+> **Pitfalls:** the callback URL is OAuth-only — don't add one to the GitHub App. No webhooks needed. Create a separate app pair per site; don't share the PEM.
 
 ## Store secrets
 ```sh
