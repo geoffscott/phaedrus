@@ -15,10 +15,6 @@ load_site() {
   test -n "${GCP_PROJECT}" || { echo "No GCP project set (gcloud config set project …)"; exit 1; }
   export GCP_PROJECT
   export OAUTH_SCOPE=$([[ "${GH_VISIBILITY}" == "private" ]] && echo "repo" || echo "public_repo")
-  # Per-post front-matter key for the taxonomy. Distinct from TAXONOMY_LABEL
-  # (the UI label, e.g. "Lenses") because the singular/lowercase key looks
-  # cleaner in front matter (e.g. `lens: Strategy`). Default works for KF.
-  export TAXONOMY_KEY="${TAXONOMY_KEY:-lens}"
   export PROXY_FN="${NAME_PREFIX}-oauth"
   export MCP_SVC="${NAME_PREFIX}-mcp"
   export PROXY_SA="${NAME_PREFIX}-oauth-rt@${GCP_PROJECT}.iam.gserviceaccount.com"

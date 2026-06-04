@@ -28,24 +28,30 @@ The site keeps a hand-written `llms.txt` at its root (preamble, purpose, license
 - Walks `_posts/` (and any other collection declared with output) and parses front matter.
 - Honors `published: false` (skip).
 - Resolves URLs against the site's permalink template — falls back to Jekyll's default (`/:categories/:year/:month/:day/:title:output_ext`) if none is configured.
-- Sorts newest-first and renders one bullet per post: `- [title](url): description`.
+- Sorts newest-first and renders one bullet per post: `- [title](url): excerpt`.
 - Splices the result between the two markers. Outside text is preserved byte-for-byte.
 
 ### Workflow (`site-assets/workflows/update-llms-txt.yml`)
 
 Runs on push to the default branch when any of `_posts/`, `_authors/`, `_data/authors.yml`, `_config.yml`, `scripts/gen_llms_txt.py`, or the workflow file itself changes. Regenerates and commits back with `phaedrus-bot` as author. Idempotent — no commit if the file is already current.
 
-### Why `description:` is the canonical hook
+### Why `excerpt:` is the canonical hook
 
-Every post **must** declare a one-line `description:` in front matter. That's the line that ends up in `llms.txt`, the SEO meta description, and (typically) the social preview. `install-site-assets.sh` prints a reminder to backfill `description:` on existing posts before the first merge.
+Every post **must** declare a one-line `excerpt:` in front matter. It's the Jekyll-core teaser *and* the SEO meta description (jekyll-seo-tag falls back `description` → `excerpt` → `site.description`), and it's the line that ends up in `llms.txt`. A post may add an optional `description:` only when the SEO meta text must differ from the excerpt. `install-site-assets.sh` prints a reminder to backfill `excerpt:` on existing posts before the first merge.
 
-## 1.2. New-tag PR check
+### Canonical post schema
 
-`site-assets/workflows/check-new-tags.yml` runs on every PR touching `_posts/**`. It runs `scripts/check_new_tags.py`, which compares the set of `tags:` across posts on the PR head against the set on the base branch, and **posts a sticky PR comment** listing any net-new tags and which post introduced each one.
+The generated Decap config and the MCP tools agree on one schema, the universal Jekyll + jekyll-seo-tag convention: `title`, `date`, `author` (singular id), `excerpt`, `tags` (≥1), `body`. `description` and `categories` are off by default and opt-in per site via `sites/<site>.posts-fields.yml`. There is no `lens` — a "lens" is just one of a post's tags. The canonical fields block lives in `site-assets/admin/posts-fields.yml`.
 
-The check is **deliberately non-blocking** — it always exits 0. The rationale: tags are free-form by design (anyone can add one), but adding a new tag is an irreversible-ish expansion of the site's taxonomy, so reviewers should *see* it happen even if they don't have to *approve* it as a separate gate. Synonyms and typos are the things this catches early ("Strategy" vs "strategy", "post-mortem" vs "postmortem").
+## 1.2. Tag-vocabulary PR check
 
-Uses `marocchino/sticky-pull-request-comment@v2` to keep one comment per PR (re-runs update in place; PRs that no longer introduce new tags get their comment cleared).
+The curated tag vocabulary lives in `_data/tags.yml` in the content repo — the single source of truth read by the Decap Tags relation widget, the MCP server (at request time), and this check. It is PR-gated, not baked into config or deploy env.
+
+`site-assets/workflows/check-new-tags.yml` runs on every PR touching `_posts/**` or `_data/tags.yml`. It runs `scripts/check_new_tags.py`, which flags any post tag on the PR head that isn't in `_data/tags.yml`, and **posts a sticky PR comment** listing them and which post uses each.
+
+The check is **deliberately non-blocking** — it always exits 0. Adding the tag to `_data/tags.yml` in the same PR clears the flag; that's the deliberate way to expand the vocabulary. The check catches synonyms and typos early ("Strategy" vs "strategy", "post-mortem" vs "postmortem").
+
+Uses `marocchino/sticky-pull-request-comment@v2` to keep one comment per PR (re-runs update in place; PRs with no out-of-vocabulary tags get their comment cleared).
 
 ## 2. Author contract
 
@@ -71,13 +77,15 @@ jane-smith:
   url:  "https://example.com"
 ```
 
-**Posts reference authors by id** in front matter:
+**Posts reference an author by key** in front matter (singular `author`, the standard jekyll-seo-tag key):
 
 ```yaml
-authors: [jane-smith, co-author-id]
+author: jane-smith
 ```
 
-The MCP `author_upsert` tool, the Decap "Authors" collection, and the human fork+PR workflow all converge on this shape. **`id` is the slug** (lowercase letters, digits, hyphens). It is the join key — never rename it without rewriting every post that references it.
+The value must **exactly match** the key the author is defined under in `_data/authors.yml` (and the corresponding `_authors/<key>.md`). minimal-mistakes and jekyll-seo-tag resolve the author by exact string match, so the key can be a slug (`jane-smith`) **or** a display name — Kindness Flywheel keys its author as `Geoff Scott` — but it must be identical everywhere and never renamed without rewriting every post that references it.
+
+**Authoring through the MCP:** pass that same key verbatim as the `author` argument to `post_create` / `post_update` (e.g. `Geoff Scott` on KF, not `geoff-scott`). The MCP does not slugify or transform it — it writes the string as given, so a mismatch silently breaks the author lookup. The `author_upsert` tool and the Decap "Authors" collection write the same shape. A site that genuinely needs multiple authors per post can switch to plural `authors` via a per-site `sites/<site>.posts-fields.yml` override.
 
 ## 3. MCP server
 
@@ -96,7 +104,7 @@ All injected at deploy time by `scripts/deploy-mcp.sh`:
 | `GH_OWNER` / `CONTENT_REPO` | The content repo.                                                  |
 | `GH_BRANCH`               | Default branch — the merge target for every PR.                      |
 | `POSTS_DIR` / `AUTHORS_DIR` / `AUTHORS_DATA` / `IMAGES_DIR` | Paths in the content repo.                       |
-| `TAXONOMY_TERMS`          | Comma-separated; powers the `lens` enum on `*_create` / `*_update`. |
+| `TAGS_DATA`               | Path to the curated tag vocabulary (default `_data/tags.yml`); read per request to validate `tags`. |
 | `TOOL_PREFIX`             | Tool-name prefix (default `post_`). Lets a host disambiguate sites. |
 | `GITHUB_APP_ID`           | Secret Manager (`*-mcp-github-app-id`).                              |
 | `GITHUB_APP_PRIVATE_KEY`  | Secret Manager (`*-mcp-github-app-key`); the PEM, as a string.       |
@@ -107,7 +115,7 @@ All injected at deploy time by `scripts/deploy-mcp.sh`:
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `post_list`      | List recent posts on `$GH_BRANCH`.                                                                                                                  |
 | `post_get`       | Read a post's front matter + body.                                                                                                                  |
-| `post_create`    | Validate args (slug, description, lens ∈ `TAXONOMY_TERMS`, authors ≥ 1), branch `phaedrus/post/<slug>` off `$GH_BRANCH`, commit, open or reuse a PR. |
+| `post_create`    | Validate args (slug, `excerpt`, `author`, `tags` ≥ 1 and ⊆ `_data/tags.yml`), branch `phaedrus/post/<slug>` off `$GH_BRANCH`, commit, open or reuse a PR. |
 | `post_update`    | Apply patch to an existing post on the post's phaedrus branch (creates the branch from default if needed). PR remains open or is reopened.          |
 | `author_upsert`  | Add/update `_authors/<id>.md` on `phaedrus/author/<id>`, open PR.                                                                                   |
 | `image_upload`   | Decode base64 image, commit to `$IMAGES_DIR/<slug>/<filename>` on the post's branch. Returns the repo path for use in the post body.                |

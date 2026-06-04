@@ -25,13 +25,7 @@ collections:
     extension: md
     format: yaml-frontmatter
     fields:
-      - { name: title,       label: Title,       widget: string }
-      - { name: date,        label: Date,        widget: datetime }
-      - { name: description, label: Description, widget: text, hint: 'One-line summary used by llms.txt and SEO.' }
-      - { name: authors,     label: Authors,     widget: list, hint: 'Author ids from _data/authors.yml or _authors/, comma-separated.' }
-      - { name: __TAXONOMY_KEY__, label: __TAXONOMY_LABEL__, widget: select, options: __TAXONOMY_OPTIONS__ }
-      - { name: tags,        label: Tags,        widget: list, required: false, hint: 'Free-form. New tags get extra scrutiny at PR review.' }
-      - { name: body,        label: Body,        widget: markdown }
+__POSTS_FIELDS__
 
   - name: authors
     label: Authors
@@ -45,3 +39,21 @@ collections:
       - { name: bio,    label: Bio,    widget: text, required: false }
       - { name: url,    label: URL,    widget: string, required: false }
       - { name: avatar, label: Avatar, widget: image,  required: false }
+
+  # Curated tag vocabulary — the set offered to the posts "Tags" relation widget.
+  # Single source of truth for known tags; also read by the MCP server and the
+  # check-new-tags PR check. Add a new tag by editing _data/tags.yml in a PR.
+  - name: tag_vocabulary
+    label: Tag vocabulary
+    editor:
+      preview: false
+    files:
+      - name: tags
+        label: Tags
+        file: _data/tags.yml
+        fields:
+          - name: tags
+            label: Tags
+            widget: list
+            fields:
+              - { name: name, label: Name, widget: string }

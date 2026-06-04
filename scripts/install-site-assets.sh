@@ -25,13 +25,63 @@ cp "$ROOT/site-assets/workflows/update-llms-txt.yml" .github/workflows/update-ll
 cp "$ROOT/site-assets/workflows/check-new-tags.yml" .github/workflows/check-new-tags.yml
 cp "$ROOT/site-assets/scripts/gen_llms_txt.py" scripts/gen_llms_txt.py
 cp "$ROOT/site-assets/scripts/check_new_tags.py" scripts/check_new_tags.py
-OPTIONS=$(printf '"%s", ' ${TAXONOMY_TERMS//,/ }); OPTIONS="[ ${OPTIONS%, } ]"
+# Canonical posts field schema, or a per-site override block if one exists.
+FIELDS_FILE="$ROOT/site-assets/admin/posts-fields.yml"
+[ -f "$ROOT/sites/${SITE}.posts-fields.yml" ] && FIELDS_FILE="$ROOT/sites/${SITE}.posts-fields.yml"
 sed -e "s#__REPO__#${GH_OWNER}/${CONTENT_REPO}#" -e "s#__BRANCH__#${GH_BRANCH}#" \
     -e "s#__BASE_URL__#${URL}#" -e "s#__SITE_URL__#${SITE_URL}#" \
     -e "s#__IMAGES_DIR__#${IMAGES_DIR}#" \
-    -e "s#__TAXONOMY_LABEL__#${TAXONOMY_LABEL}#" -e "s#__TAXONOMY_KEY__#${TAXONOMY_KEY}#" \
-    -e "s#__TAXONOMY_OPTIONS__#${OPTIONS}#" \
+    -e "/__POSTS_FIELDS__/{" -e "r ${FIELDS_FILE}" -e "d" -e "}" \
     "$ROOT/site-assets/admin/config.yml.tmpl" > admin/config.yml
+
+# Seed the curated tag vocabulary once, if the site doesn't have one yet. Seeds
+# from tags already used in existing posts (so current content stays valid under
+# the check-new-tags gate) plus any INITIAL_TAGS migration seed. Never overwrites.
+if [ ! -f _data/tags.yml ]; then
+  mkdir -p _data
+  if command -v python3 >/dev/null 2>&1; then
+    INITIAL_TAGS="${INITIAL_TAGS:-}" python3 - <<'PY' > _data/tags.yml
+import os, re, glob
+tags = set()
+for f in glob.glob('_posts/**/*.md', recursive=True) + glob.glob('_posts/**/*.markdown', recursive=True):
+    try:
+        txt = open(f, encoding='utf-8').read()
+    except OSError:
+        continue
+    m = re.match(r'^---\n(.*?)\n---', txt, re.S)
+    if not m:
+        continue
+    fm = m.group(1)
+    inline = re.search(r'^tags:\s*\[(.*?)\]', fm, re.M)
+    if inline:
+        items = inline.group(1).split(',')
+    else:
+        block = re.search(r'^tags:\s*\n((?:[ \t]*-[ \t]*.+\n?)+)', fm, re.M)
+        items = re.findall(r'-[ \t]*(.+)', block.group(1)) if block else []
+    for t in items:
+        t = t.strip().strip('"\'')
+        if t:
+            tags.add(t)
+for t in os.environ.get('INITIAL_TAGS', '').split(','):
+    t = t.strip()
+    if t:
+        tags.add(t)
+print('# Curated tag vocabulary for this site (phaedrus).')
+print('# Read by the Decap "Tags" relation widget, the MCP server, and check_new_tags.py.')
+print('# Add a new tag here (in a PR) before using it on a post.')
+print('tags:')
+for t in sorted(tags):
+    print(f'  - name: {t}')
+PY
+  else
+    {
+      echo '# Curated tag vocabulary for this site (phaedrus). Add new tags here in a PR.'
+      echo 'tags:'
+      IFS=','; for t in ${INITIAL_TAGS:-}; do t="${t#"${t%%[![:space:]]*}"}"; [ -n "$t" ] && echo "  - name: $t"; done
+    } > _data/tags.yml
+  fi
+  echo "Seeded _data/tags.yml ($(grep -c '  - name:' _data/tags.yml) tag(s))."
+fi
 git add -A
 if git diff --cached --quiet; then
   echo "Site assets already current — nothing to commit."
@@ -51,9 +101,11 @@ Wires this site into [phaedrus](https://github.com/geoffscott/phaedrus) — a sm
   - Backend: GitHub (\`${GH_OWNER}/${CONTENT_REPO}\`, branch \`${GH_BRANCH}\`)
   - OAuth proxy: \`${URL}\`
   - Media folder: \`${IMAGES_DIR}\`
-  - Taxonomy: **${TAXONOMY_LABEL}** → ${TAXONOMY_TERMS}
+  - Posts schema: canonical Jekyll + jekyll-seo-tag fields (title, date, author, excerpt, tags, body)
+  - Tag vocabulary: \`_data/tags.yml\` (curated; the Tags field selects from it — add new tags here in a PR)
+- **\`_data/tags.yml\`** — the curated tag vocabulary (seeded from existing posts on first install). Single source of truth shared by the CMS Tags picker, the MCP server, and the check-new-tags PR check.
 - **\`.github/workflows/update-llms-txt.yml\`** — regenerates \`${LLMS_TXT}\` on every push to \`${GH_BRANCH}\` that touches posts, authors, the site config, or the generator itself. Commits back with \`phaedrus-bot\` as author; no-op when already current.
-- **\`.github/workflows/check-new-tags.yml\`** — runs on every PR touching \`_posts/**\`. If the PR introduces a tag that doesn't appear on any post on \`${GH_BRANCH}\`, posts a sticky comment listing the new tags. **Non-blocking** — just gives reviewers a heads-up so they can spot typos / synonyms before the taxonomy quietly grows.
+- **\`.github/workflows/check-new-tags.yml\`** — runs on every PR touching \`_posts/**\`. If the PR uses a tag that isn't in \`_data/tags.yml\`, posts a sticky comment listing the new tags. **Non-blocking** — just gives reviewers a heads-up so they can spot typos / synonyms before the vocabulary quietly grows.
 - **\`scripts/gen_llms_txt.py\`** — site-agnostic generator. Reads this repo's own \`_config.yml\` for the permalink template and any extra collections; falls back to Jekyll defaults.
 - **\`scripts/check_new_tags.py\`** — the detector used by the check-new-tags workflow above.
 
@@ -78,7 +130,9 @@ Once merged, all three authoring doors land as PRs on \`${GH_BRANCH}\` for human
 
    Everything between is owned by phaedrus and gets regenerated; everything outside is preserved byte-for-byte.
 
-2. **Backfill \`description:\` in existing posts' front matter** (optional but recommended). That one-liner shows up in \`${LLMS_TXT}\` bullets and as the SEO meta description. Posts without it become bare-title bullets.
+2. **Backfill \`excerpt:\` in existing posts' front matter** (optional but recommended). That one-liner shows up in \`${LLMS_TXT}\` bullets and feeds the SEO meta description (seo-tag falls back \`description\`→\`excerpt\`→\`site.description\`). Posts without it become bare-title bullets.
+
+3. **Review the seeded \`_data/tags.yml\`.** It was populated from tags already used in your posts; tidy up any typos/synonyms before merging, since this becomes the curated vocabulary.
 
 ## After merging
 
