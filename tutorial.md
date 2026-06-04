@@ -18,6 +18,10 @@ make bootstrap SITE=<key>
 
 GitHub apps are owned by a **user account or an organization** (not a repo). Recommended: create both under the same account that owns your content repo (your `GH_OWNER`) so bot attribution stays on-brand and ownership transfers with the org. Your personal account also works if you don't have org-owner permissions.
 
+**Naming**
+- OAuth App: `<Site Name> CMS` — appears on the GitHub consent screen ("Authorize …"), so make it the editor-facing brand.
+- GitHub App: `<NAME_PREFIX>-phaedrus` — becomes the bot author in commit history (`…-phaedrus[bot]`). Self-documents what made the commit, and the per-site prefix keeps you clear of GitHub's global-uniqueness requirement (34-char limit). OAuth App names aren't unique; just be descriptive.
+
 ### OAuth App (Decap login)
 `Settings → Developer settings → OAuth Apps → New OAuth App`
 
