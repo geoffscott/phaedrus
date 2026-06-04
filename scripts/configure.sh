@@ -27,7 +27,8 @@ ask AUTHORS_DIR    "Authors dir"                       "_authors"
 ask AUTHORS_DATA   "Authors data file"                "_data/authors.yml"
 ask IMAGES_DIR     "Images dir"                        "assets/images/posts"
 ask LLMS_TXT       "llms.txt path"                     "llms.txt"
-ask TAXONOMY_LABEL "Taxonomy label"                    "Lenses"
+ask TAXONOMY_LABEL "Taxonomy UI label (site-wide)"     "Lenses"
+ask TAXONOMY_KEY   "Taxonomy front-matter key (per post)" "lens"
 ask TAXONOMY_TERMS "Taxonomy terms (comma-separated)"  "Strategy,People,Technology,Practice,Meta"
 mkdir -p sites
 cat > "$OUT" <<EOF
@@ -46,6 +47,7 @@ AUTHORS_DATA="${AUTHORS_DATA}"
 IMAGES_DIR="${IMAGES_DIR}"
 LLMS_TXT="${LLMS_TXT}"
 TAXONOMY_LABEL="${TAXONOMY_LABEL}"
+TAXONOMY_KEY="${TAXONOMY_KEY}"
 TAXONOMY_TERMS="${TAXONOMY_TERMS}"
 EOF
 echo "Wrote ${OUT} (gitignored). Next: make bootstrap SITE=${SITE_KEY}"

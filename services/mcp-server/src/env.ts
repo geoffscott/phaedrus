@@ -19,6 +19,7 @@ export const config = {
     .split(',')
     .map((t) => t.trim())
     .filter(Boolean),
+  taxonomyKey: opt('TAXONOMY_KEY', 'lens'),
   toolPrefix: opt('TOOL_PREFIX', 'post_'),
   githubAppId: req('GITHUB_APP_ID'),
   githubAppPrivateKey: req('GITHUB_APP_PRIVATE_KEY'),

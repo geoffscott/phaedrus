@@ -16,8 +16,10 @@ cp "$ROOT/site-assets/workflows/update-llms-txt.yml" .github/workflows/update-ll
 cp "$ROOT/site-assets/scripts/gen_llms_txt.py" scripts/gen_llms_txt.py
 OPTIONS=$(printf '"%s", ' ${TAXONOMY_TERMS//,/ }); OPTIONS="[ ${OPTIONS%, } ]"
 sed -e "s#__REPO__#${GH_OWNER}/${GH_REPO}#" -e "s#__BRANCH__#${GH_BRANCH}#" \
-    -e "s#__BASE_URL__#${URL}#" -e "s#__IMAGES_DIR__#${IMAGES_DIR}#" \
-    -e "s#__TAXONOMY_LABEL__#${TAXONOMY_LABEL}#" -e "s#__TAXONOMY_OPTIONS__#${OPTIONS}#" \
+    -e "s#__BASE_URL__#${URL}#" -e "s#__SITE_URL__#${SITE_URL}#" \
+    -e "s#__IMAGES_DIR__#${IMAGES_DIR}#" \
+    -e "s#__TAXONOMY_LABEL__#${TAXONOMY_LABEL}#" -e "s#__TAXONOMY_KEY__#${TAXONOMY_KEY}#" \
+    -e "s#__TAXONOMY_OPTIONS__#${OPTIONS}#" \
     "$ROOT/site-assets/admin/config.yml.tmpl" > admin/config.yml
 git add -A
 if git diff --cached --quiet; then

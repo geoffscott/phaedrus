@@ -13,8 +13,8 @@ backend:
 publish_mode: editorial_workflow
 media_folder: __IMAGES_DIR__
 public_folder: /__IMAGES_DIR__
-site_url: https://__REPO__
-display_url: https://__REPO__
+site_url: __SITE_URL__
+display_url: __SITE_URL__
 
 collections:
   - name: posts
@@ -28,9 +28,9 @@ collections:
       - { name: title,       label: Title,       widget: string }
       - { name: date,        label: Date,        widget: datetime }
       - { name: description, label: Description, widget: text, hint: 'One-line summary used by llms.txt and SEO.' }
-      - { name: authors,     label: Authors,     widget: list, field: { name: id, label: 'Author id', widget: string } }
-      - { name: __TAXONOMY_LABEL__, label: __TAXONOMY_LABEL__, widget: select, options: __TAXONOMY_OPTIONS__ }
-      - { name: tags,        label: Tags,        widget: list, required: false }
+      - { name: authors,     label: Authors,     widget: list, hint: 'Author ids from _data/authors.yml or _authors/, comma-separated.' }
+      - { name: __TAXONOMY_KEY__, label: __TAXONOMY_LABEL__, widget: select, options: __TAXONOMY_OPTIONS__ }
+      - { name: tags,        label: Tags,        widget: list, required: false, hint: 'Free-form. New tags get extra scrutiny at PR review.' }
       - { name: body,        label: Body,        widget: markdown }
 
   - name: authors

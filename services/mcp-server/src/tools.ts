@@ -93,7 +93,7 @@ export function registerTools(server: McpServer): void {
         date,
         description: args.description,
         authors: args.authors,
-        [config.taxonomyTerms.length ? 'lens' : 'category']: args.lens,
+        [config.taxonomyKey]: args.lens,
       };
       if (args.tags && args.tags.length) fm.tags = args.tags;
       if (args.draft) fm.published = false;
@@ -147,7 +147,7 @@ export function registerTools(server: McpServer): void {
       const data = { ...parsed.data };
       if (args.title) data.title = args.title;
       if (args.description) data.description = args.description;
-      if (args.lens) data[config.taxonomyTerms.length ? 'lens' : 'category'] = args.lens;
+      if (args.lens) data[config.taxonomyKey] = args.lens;
       const tags: string[] | undefined = args.tags;
       const merged: Record<string, string | string[]> = { ...data };
       if (tags) merged.tags = tags;
