@@ -7,9 +7,15 @@ function opt(name: string, fallback: string): string {
   return process.env[name] || fallback;
 }
 
+// Back-compat: previously this service was deployed with GH_REPO=<name>.
+// That env var collides with the gh CLI; we now use CONTENT_REPO. Accept
+// either so existing Cloud Run revisions don't break on rolling restart.
+const contentRepo = process.env.CONTENT_REPO || process.env.GH_REPO;
+if (!contentRepo) throw new Error('Missing env: CONTENT_REPO (or legacy GH_REPO)');
+
 export const config = {
   ghOwner: req('GH_OWNER'),
-  ghRepo: req('GH_REPO'),
+  ghRepo: contentRepo,
   ghBranch: opt('GH_BRANCH', 'main'),
   postsDir: opt('POSTS_DIR', '_posts'),
   authorsDir: opt('AUTHORS_DIR', '_authors'),

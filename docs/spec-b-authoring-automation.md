@@ -93,7 +93,7 @@ All injected at deploy time by `scripts/deploy-mcp.sh`:
 
 | Var                       | Purpose                                                              |
 | ------------------------- | -------------------------------------------------------------------- |
-| `GH_OWNER` / `GH_REPO`    | The content repo.                                                    |
+| `GH_OWNER` / `CONTENT_REPO` | The content repo.                                                  |
 | `GH_BRANCH`               | Default branch — the merge target for every PR.                      |
 | `POSTS_DIR` / `AUTHORS_DIR` / `AUTHORS_DATA` / `IMAGES_DIR` | Paths in the content repo.                       |
 | `TAXONOMY_TERMS`          | Comma-separated; powers the `lens` enum on `*_create` / `*_update`. |
