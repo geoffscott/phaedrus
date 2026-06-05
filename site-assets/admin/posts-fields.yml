@@ -3,7 +3,15 @@
 # Per-site override: drop a complete replacement block at sites/<site>.posts-fields.yml.
       - { name: title,   label: Title,   widget: string }
       - { name: date,    label: Date,    widget: datetime }
-      - { name: author,  label: Author,  widget: string, hint: 'Author id (matches _data/authors.yml / _authors/).' }
+      - name: author
+        label: Author
+        widget: relation
+        collection: authors
+        value_field: title
+        search_fields: ['title']
+        display_fields: ['title']
+        required: true
+        hint: 'Pick an author. New authors: create them in the Authors collection first (and add a matching _data/authors.yml entry).'
       - { name: excerpt, label: Excerpt, widget: text, hint: 'Teaser AND SEO meta description (seo-tag falls back description→excerpt→site.description).' }
       - name: tags
         label: Tags

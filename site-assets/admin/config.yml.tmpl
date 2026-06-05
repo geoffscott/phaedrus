@@ -27,18 +27,18 @@ collections:
     fields:
 __POSTS_FIELDS__
 
+  # Author landing pages (_authors/<slug>.md). The post "Author" relation above
+  # selects from these by title. NOTE: a post's byline/SEO resolves the author
+  # name against _data/authors.yml (keyed by that title) — keep the two in sync.
   - name: authors
     label: Authors
     folder: _authors
     create: true
     extension: md
     format: yaml-frontmatter
-    identifier_field: name
+    identifier_field: title
     fields:
-      - { name: name,   label: Name,   widget: string }
-      - { name: bio,    label: Bio,    widget: text, required: false }
-      - { name: url,    label: URL,    widget: string, required: false }
-      - { name: avatar, label: Avatar, widget: image,  required: false }
+__AUTHORS_FIELDS__
 
   # Curated tag vocabulary — the set offered to the posts "Tags" relation widget.
   # Single source of truth for known tags; also read by the MCP server and the

@@ -1,0 +1,9 @@
+# phaedrus author-page fields — the _authors/<slug>.md landing pages.
+# `layout` + `author_profile` come from _config `defaults` for type: authors; pinned
+# here as hidden so CMS-created/edited entries keep them. `permalink` is derived by
+# the collection's permalink setting (/authors/:path/), so it isn't edited here.
+# Per-site override: drop a complete replacement block at sites/<site>.authors-fields.yml.
+      - { name: title,          label: Name,           widget: string }
+      - { name: layout,         label: Layout,         widget: hidden, default: single }
+      - { name: author_profile, label: Author profile, widget: hidden, default: true }
+      - { name: body,           label: Bio,            widget: markdown }
