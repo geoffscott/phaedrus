@@ -25,13 +25,16 @@ cp "$ROOT/site-assets/workflows/update-llms-txt.yml" .github/workflows/update-ll
 cp "$ROOT/site-assets/workflows/check-new-tags.yml" .github/workflows/check-new-tags.yml
 cp "$ROOT/site-assets/scripts/gen_llms_txt.py" scripts/gen_llms_txt.py
 cp "$ROOT/site-assets/scripts/check_new_tags.py" scripts/check_new_tags.py
-# Canonical posts field schema, or a per-site override block if one exists.
+# Canonical field schemas, or per-site override blocks if they exist.
 FIELDS_FILE="$ROOT/site-assets/admin/posts-fields.yml"
 [ -f "$ROOT/sites/${SITE}.posts-fields.yml" ] && FIELDS_FILE="$ROOT/sites/${SITE}.posts-fields.yml"
+AUTHORS_FIELDS_FILE="$ROOT/site-assets/admin/authors-fields.yml"
+[ -f "$ROOT/sites/${SITE}.authors-fields.yml" ] && AUTHORS_FIELDS_FILE="$ROOT/sites/${SITE}.authors-fields.yml"
 sed -e "s#__REPO__#${GH_OWNER}/${CONTENT_REPO}#" -e "s#__BRANCH__#${GH_BRANCH}#" \
     -e "s#__BASE_URL__#${URL}#" -e "s#__SITE_URL__#${SITE_URL}#" \
     -e "s#__IMAGES_DIR__#${IMAGES_DIR}#" \
     -e "/__POSTS_FIELDS__/{" -e "r ${FIELDS_FILE}" -e "d" -e "}" \
+    -e "/__AUTHORS_FIELDS__/{" -e "r ${AUTHORS_FIELDS_FILE}" -e "d" -e "}" \
     "$ROOT/site-assets/admin/config.yml.tmpl" > admin/config.yml
 
 # Seed the curated tag vocabulary once, if the site doesn't have one yet. Seeds
