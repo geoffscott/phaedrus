@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail; source scripts/lib.sh; load_site
 require_cmd git; require_cmd gh
-URL=$(gcloud functions describe "$PROXY_FN" --region="$GCP_REGION" --gen2 --format='value(serviceConfig.uri)')
+# Decap's base_url: the custom API domain if configured, else the proxy's own URL.
+URL="${PUBLIC_BASE_URL:-$(gcloud functions describe "$PROXY_FN" --region="$GCP_REGION" --gen2 --format='value(serviceConfig.uri)')}"
 ROOT="$PWD"; BR="phaedrus/site-assets"
 TMP=$(mktemp -d); git clone "https://github.com/${GH_OWNER}/${CONTENT_REPO}.git" "$TMP"; cd "$TMP"
 # If the branch exists with unmerged commits, reuse it (updates the open PR).
@@ -86,13 +87,25 @@ PY
   echo "Seeded _data/tags.yml ($(grep -c '  - name:' _data/tags.yml) tag(s))."
 fi
 git add -A
+# Distinguish a first install (core admin files newly added) from a routine
+# re-run (e.g. just a base_url change) so the commit + PR describe what actually
+# changed, rather than always claiming to install the whole stack.
+DIFFSTAT=$(git diff --cached --stat)
+if git diff --cached --name-status | grep -qE '^A[[:space:]]+admin/index\.html$'; then
+  FIRST_INSTALL=yes
+  COMMIT_MSG="chore: add phaedrus (Decap admin + llms.txt automation)"
+else
+  FIRST_INSTALL=no
+  COMMIT_MSG="chore(phaedrus): update site assets"
+fi
 if git diff --cached --quiet; then
   echo "Site assets already current — nothing to commit."
 else
   git -c user.name=phaedrus -c user.email=phaedrus@users.noreply.github.com \
-    commit -m "chore: add/update phaedrus (Decap admin + llms.txt automation)"
+    commit -m "$COMMIT_MSG"
   git push -u origin "$BR" --force-with-lease
 fi
+if [ "$FIRST_INSTALL" = yes ]; then
 PR_TITLE="phaedrus setup: Decap admin + llms.txt automation"
 PR_BODY=$(cat <<EOF
 Wires this site into [phaedrus](https://github.com/geoffscott/phaedrus) — a small toolkit that converges three authoring doors on a single PR review gate.
@@ -151,6 +164,10 @@ Re-running \`make install-site-assets SITE=…\` on phaedrus pushes new commits 
 phaedrus is MIT-licensed. Site content keeps whatever license this repo declares.
 EOF
 )
+else
+PR_TITLE="chore(phaedrus): update site assets"
+PR_BODY=$(printf 'Updates phaedrus-managed site assets in place (no new setup). Changed:\n\n```\n%s\n```\n' "$DIFFSTAT")
+fi
 # Only an OPEN PR counts as "already exists" — a previously-merged or closed
 # PR on this same branch must not block us from opening a fresh one for the
 # next round of changes.
@@ -161,4 +178,36 @@ else
   gh pr create --base "$GH_BRANCH" --head "$BR" --title "$PR_TITLE" --body "$PR_BODY" || \
     echo "Branch pushed; open the PR manually."
 fi
+
+# --- PR review gate (Spec B §0) -------------------------------------------
+# phaedrus's whole model: every authoring door (Decap, MCP, forks) converges on
+# a PR against the default branch. Enforce it with branch protection — require 1
+# approving review to merge, but DON'T enforce for admins (enforce_admins=false).
+# That gates everything that ISN'T a repo admin (the MCP GitHub App, collaborators,
+# fork PRs) behind review, while letting the site owner — a repo admin, which is
+# who Decap logs in as — merge their own edits directly. Trust the admin; gate the
+# rest. Branch protection is identity-based, not per-door: it can only tell "admin"
+# from "not admin", so handing /admin/ to a non-admin gates their edits too.
+#
+# Non-destructive: if protection already exists we leave it alone, so an operator
+# who tuned the rule (status checks, 2 reviewers, include-admins) keeps it on re-runs.
+if gh api "repos/${GH_OWNER}/${CONTENT_REPO}/branches/${GH_BRANCH}/protection" >/dev/null 2>&1; then
+  echo "Branch protection already set on ${GH_BRANCH}; leaving it as-is."
+elif gh api -X PUT "repos/${GH_OWNER}/${CONTENT_REPO}/branches/${GH_BRANCH}/protection" \
+       --input - >/dev/null 2>&1 <<'JSON'
+{
+  "required_status_checks": null,
+  "enforce_admins": false,
+  "required_pull_request_reviews": { "required_approving_review_count": 1 },
+  "restrictions": null
+}
+JSON
+then
+  echo "Enabled PR review gate on ${GH_BRANCH} (require 1 review; admins exempt)."
+else
+  echo "WARNING: couldn't set branch protection on ${GH_BRANCH} — leaving it unprotected." >&2
+  echo "  Needs admin on ${GH_OWNER}/${CONTENT_REPO}; private repos require a paid GitHub plan." >&2
+  echo "  Set by hand: Settings -> Branches -> protect ${GH_BRANCH}, require 1 approval, do NOT include admins." >&2
+fi
+
 echo "NOTE: add the AUTOGEN markers to ${LLMS_TXT} and backfill post 'excerpt:' before first merge (Spec B §1.1)."
