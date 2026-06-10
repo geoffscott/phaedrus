@@ -23,5 +23,13 @@ load_site() {
   export SEC_STATE="${NAME_PREFIX}-state-signing-key"
   export SEC_APPKEY="${NAME_PREFIX}-mcp-github-app-key"
   export SEC_APPID="${NAME_PREFIX}-mcp-github-app-id"
+  # Optional custom subdomains, one per service, via plain Cloud Run domain
+  # mappings (no load balancer). Either/both/neither. See scripts/deploy-domain.sh.
+  export MCP_DOMAIN="${MCP_DOMAIN:-}"     # e.g. mcp.example.org  -> MCP server
+  export AUTH_DOMAIN="${AUTH_DOMAIN:-}"   # e.g. auth.example.org -> OAuth proxy
+  # The public base URL the OAuth proxy and Decap should use: the custom auth
+  # domain if set, else empty so deploy-proxy/install-site-assets fall back to
+  # the proxy's own *.run.app URL (resolved at deploy time).
+  export PUBLIC_BASE_URL=$([ -n "${AUTH_DOMAIN}" ] && echo "https://${AUTH_DOMAIN}" || echo "")
 }
 require_cmd() { command -v "$1" >/dev/null || { echo "Missing dependency: $1"; exit 1; }; }

@@ -28,6 +28,8 @@ ask AUTHORS_DATA   "Authors data file"                "_data/authors.yml"
 ask IMAGES_DIR     "Images dir"                        "assets/images/posts"
 ask LLMS_TXT       "llms.txt path"                     "llms.txt"
 ask INITIAL_TAGS   "Initial tag vocabulary seed (comma-separated, optional)" "Strategy,People,Technology,Practice,Meta"
+ask MCP_DOMAIN     "Custom domain for the MCP server (optional, blank to skip)"   ""
+ask AUTH_DOMAIN    "Custom domain for the OAuth proxy (optional, blank to skip)"  ""
 mkdir -p sites
 cat > "$OUT" <<EOF
 SITE_NAME="${SITE_NAME}"
@@ -45,5 +47,7 @@ AUTHORS_DATA="${AUTHORS_DATA}"
 IMAGES_DIR="${IMAGES_DIR}"
 LLMS_TXT="${LLMS_TXT}"
 INITIAL_TAGS="${INITIAL_TAGS}"
+MCP_DOMAIN="${MCP_DOMAIN}"
+AUTH_DOMAIN="${AUTH_DOMAIN}"
 EOF
 echo "Wrote ${OUT} (gitignored). Next: make bootstrap SITE=${SITE_KEY}"

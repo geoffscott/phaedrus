@@ -20,7 +20,7 @@ All values are injected at deploy time from the active `sites/<key>.env`:
 | `STATE_SIGNING_KEY`          | Secret Manager (`*-state-signing-key`) | HMAC key used to sign the `state` parameter.             |
 | `OAUTH_SCOPE`                | derived from `GH_VISIBILITY` (`public` → `public_repo`, `private` → `repo`) | Scope requested from GitHub. |
 | `ALLOWED_ORIGIN`             | `SITE_ORIGIN`           | The origin we will `postMessage` the token back to. Hard pin.          |
-| `BASE_URL`                   | set on the second deploy phase | The function's own public URL. Used to build `redirect_uri`.    |
+| `BASE_URL`                   | set on the second deploy phase | The public URL the proxy is reached at — used to build `redirect_uri` and Decap's `base_url`. The function's own `*.run.app` URL by default, or `https://$AUTH_DOMAIN` when a custom domain is configured. |
 
 ## Routes
 
@@ -57,6 +57,45 @@ Both are sent with `targetOrigin = ALLOWED_ORIGIN`, never `'*'`.
 3. Second `gcloud functions deploy --update-env-vars="BASE_URL=$URL"` — same URL on every subsequent run, so this converges.
 
 The OAuth App callback you configure in the GitHub UI is `$BASE_URL/callback`.
+
+## Custom domains (optional)
+
+By default the proxy and the MCP server each answer on their own `*.run.app`
+URL. Two optional, independent vars in `sites/<key>.env` put a custom subdomain
+on either service via a **plain Cloud Run domain mapping** — one host per
+service, no load balancer (`scripts/deploy-domain.sh`, `make deploy-domain`):
+
+| Var | Maps to | Result |
+|---|---|---|
+| `MCP_DOMAIN` (e.g. `mcp.example.org`) | MCP server | `https://mcp.example.org/mcp` |
+| `AUTH_DOMAIN` (e.g. `auth.example.org`) | OAuth proxy | OAuth flow at `https://auth.example.org` |
+
+A domain mapping maps one host to one service, which is exactly the shape here —
+two services, two subdomains. (Putting *both* on a single host path-routed
+(`api.example.org/mcp` + `/auth`) is the one thing a mapping can't do; that would
+need a load balancer, which is deliberately not used here.)
+
+Operational consequences:
+
+- **When `AUTH_DOMAIN` is set, `BASE_URL` becomes `https://$AUTH_DOMAIN`** (set by
+  `deploy-proxy.sh`), so the GitHub `redirect_uri` is `https://$AUTH_DOMAIN/callback`.
+  **Update the GitHub OAuth App's Authorization callback URL to match** — a stale
+  callback breaks login. Decap's `base_url` (written by `install-site-assets.sh`)
+  likewise becomes `https://$AUTH_DOMAIN`.
+- **Cloudflare must be DNS-only (grey cloud)** on the `CNAME` the mapping prints
+  (→ `ghs.googlehosted.com`), at least until the Google-managed cert provisions
+  (~15–60 min). Orange-cloud proxying terminates TLS at Cloudflare's edge and
+  blocks cert validation; switch to proxied (SSL Full (strict)) only afterward.
+- **One-time:** the parent domain must be verified for your account
+  (`gcloud domains verify <parent-domain>`) before a mapping is accepted.
+- **Requires the gcloud `beta` component** (`gcloud components install beta`).
+  Managed Cloud Run domain mappings are `gcloud beta run domain-mappings`; the GA
+  `gcloud run domain-mappings` is the Cloud Run for Anthos surface. The script
+  preflights this and exits with that instruction if beta is missing.
+- Domain mappings add no recurring cost beyond the services themselves.
+- `make deploy-domain` is idempotent (skips existing mappings) and a no-op when
+  both vars are empty; `make deploy` runs it last. `make destroy` deletes the
+  mappings.
 
 ## What's intentionally not here
 

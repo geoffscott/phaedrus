@@ -16,7 +16,7 @@ cat <<EOF
 
   Claude.ai custom connector
   → MCP endpoint URL (path matters):
-      ${MCP_URL}/mcp
+      ${MCP_URL}/mcp$([ -n "${MCP_DOMAIN}" ] && printf '\n      https://%s/mcp   (custom domain — run '\''make deploy-domain'\'')' "${MCP_DOMAIN}")
     (verify auth steps at docs.claude.com)
 ================================================================
 EOF

@@ -37,10 +37,16 @@ Content stays in your existing Jekyll repo on GitHub. See [`docs/spec-a-oauth-pr
 4. `make bootstrap SITE=<key>`     # enables APIs, creates SAs + secret shells
 5. Create the GitHub OAuth App + GitHub App (the two manual gates — see tutorial), then:
    `make secrets SITE=<key>`       # pushes the credentials into Secret Manager
-6. `make deploy SITE=<key>`        # deploys the OAuth proxy + MCP server
+6. `make deploy SITE=<key>`        # deploys the OAuth proxy + MCP server (+ custom domain mappings if MCP_DOMAIN/AUTH_DOMAIN are set)
 7. `make install-site-assets SITE=<key>`  # opens a PR adding Decap + llms.txt automation to your content repo
 
 Every target is idempotent — safe to re-run.
+
+**Optional — custom domains.** Set `MCP_DOMAIN` and/or `AUTH_DOMAIN` (e.g.
+`mcp.example.org`, `auth.example.org`) in `sites/<key>.env` and `make deploy`
+maps each via a plain Cloud Run domain mapping (no load balancer). Then add the
+printed CNAME records in Cloudflare as DNS-only, and update the GitHub OAuth App
+callback. See [docs/spec-a-oauth-proxy.md](docs/spec-a-oauth-proxy.md#custom-domains-optional).
 
 ## Requirements, cost & license
 
