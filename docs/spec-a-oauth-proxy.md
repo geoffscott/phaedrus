@@ -97,6 +97,66 @@ Operational consequences:
   both vars are empty; `make deploy` runs it last. `make destroy` deletes the
   mappings.
 
+## Bot backend — authenticating GitHub-API proxy (`/github`)
+
+By default the proxy only does OAuth: it hands Decap the **logged-in user's own
+token**, and Decap talks to `api.github.com` directly. That means `/admin/` only
+works for people with push access to the content repo (their token must be able to
+push the branch). To open `/admin/` to **any GitHub-account holder with no push
+access** — without the fork-based "Open Authoring" flow — a site sets
+`DECAP_BOT_BACKEND=true` (see Spec B §0). `install-site-assets.sh` then writes
+`api_root: $BASE_URL/github` into `admin/config.yml`, so Decap routes **all** its
+REST calls through this proxy (REST only — phaedrus never sets `use_graphql`).
+
+Under `/github`, the proxy is an **authenticating reverse proxy** to
+`https://api.github.com`. It swaps the `Authorization` per route:
+
+| Incoming path (after `/github`) | Forwarded as | Why |
+|---|---|---|
+| `/user`, `/user/*`, `/users/*` | the **contributor's** OAuth token (passthrough) | Identity + public-profile reads — an installation token can't call `/user`, and Decap fetches the commit author's profile via `/users/<login>` (e.g. the bot's, for its avatar on the workflow card). Never touches the App token. |
+| `/repos/$GH_OWNER/$CONTENT_REPO[/*]` | the **GitHub App installation token** | Lets a no-push-access contributor create branches, commits, and PRs on the content repo. The App is the **committer** (commit *author* is the human — see below); the gate (branch protection) still applies. |
+| anything else | — | `403`. Stops the App token being used as a general api.github.com relay. |
+
+Mechanics:
+
+- **Token validation.** Before using the App token on a repo path, the proxy
+  validates the contributor's bearer token against `GET /user` (cached ~5 min by
+  token hash) and refuses if invalid — so the powerful App token is never lent to an
+  anonymous caller. (The MCP door is already unauthenticated and App-backed, so this
+  is strictly *more* gated than the existing automation door.)
+- **Installation token.** Minted exactly like the MCP server's identity (App JWT →
+  `GET /repos/{o}/{r}/installation` → `POST /app/installations/{id}/access_tokens`),
+  using the **same GitHub App and secrets** (`*-mcp-github-app-id`, `*-mcp-github-app-key`).
+  `bootstrap.sh` grants the proxy SA `secretAccessor` on them; `deploy-proxy.sh`
+  mounts them plus `GH_OWNER`/`CONTENT_REPO`/`GH_BRANCH`. Cached in-memory, refreshed
+  ~1 min before expiry. The JWT is signed with `node:crypto` (RS256) — no extra deps.
+- **CORS.** `/admin/` is on `SITE_ORIGIN` while `api_root` is the proxy host, so the
+  proxy answers the preflight and pins `Access-Control-Allow-Origin` to
+  `ALLOWED_ORIGIN`, exposing `Link`/`ETag`/rate-limit headers.
+- **Pagination.** The upstream `Link` header's `api.github.com` URLs are rewritten to
+  `$BASE_URL/github` so follow-up pages stay on the proxy.
+- **Repo-permissions rewrite.** Decap's `hasWriteAccess()` reads `permissions.push`
+  from `GET /repos/{owner}/{repo}` and refuses login if it's false. An installation
+  token isn't a *user*, so GitHub reports all-false permissions there — which would
+  block every contributor. Since writes genuinely go through the App via this proxy,
+  the proxy rewrites **only that one response** (exact repo path, `GET`, JSON 200) to
+  report `push: true`. Subpaths and all other responses pass through byte-for-byte.
+- **Commit attribution.** On the commit-creating writes (`POST …/git/commits` and
+  `PUT …/contents/…`), the proxy injects an `author` built from the validated
+  contributor's identity, using their GitHub **noreply** email
+  (`<id>+<login>@users.noreply.github.com`) — so `git log` credits the human and the
+  commit links to their profile **without exposing any private email**. It sets
+  `author` only and omits `committer`, so GitHub fills the committer in from the
+  author too: the commit ends up **fully attributed to the contributor** (author and
+  committer), linked to their account. The App identity is purely *authorization* —
+  the installation token is what actually creates the commit/ref/PR — and is what
+  *opens* the PR. Because `author` is taken from the validated token (not from the
+  request body), a contributor cannot spoof someone else's identity.
+
+The bot backend requires the GitHub App to also grant **Issues: Read & write**
+(Decap's editorial workflow manages PR labels). It is **off by default**; sites that
+don't set `DECAP_BOT_BACKEND` never exercise the `/github` route or the App secrets.
+
 ## What's intentionally not here
 
 - No session/cookie state. The proxy is stateless — every request is independent.

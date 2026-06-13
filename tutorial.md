@@ -8,6 +8,7 @@ Run: `gcloud config set project <walkthrough-project-id/>`
 ```sh
 make configure        # walks each setting; Enter accepts the KF default
 ```
+One prompt to note: **`DECAP_BOT_BACKEND`** (default `false`). Leave it `false` and `/admin/` is the owner/maintainer door (only people with push access can use it). Set it `true` to open `/admin/` to **any GitHub-account holder** with no push access: Decap's GitHub API is routed through the proxy, which commits as the phaedrus GitHub App, so a branch + PR land on the content repo for review — no fork, nothing for the contributor to maintain. See Spec B §0. If you enable it, the GitHub App needs one extra permission (next section). Kindness Flywheel ships with it `true`.
 
 ## Bootstrap GCP
 ```sh
@@ -39,6 +40,7 @@ GitHub apps are owned by a **user account or an organization** (not a repo). Rec
 - **Permissions → Repository:**
   - Contents: **Read & write**
   - Pull requests: **Read & write**
+  - Issues: **Read & write** — **only if** you set `DECAP_BOT_BACKEND=true` (the proxy commits as this App for public `/admin/` contributors, and Decap's editorial workflow manages PR labels, which need the Issues permission). Skip it otherwise.
   - Nothing else.
 - **Where can this GitHub App be installed:** "Only on this account" is fine.
 - Save, then note the **App ID** and **generate + download a private-key PEM** (one-time download — store it securely; this becomes `GH_APP_KEY_FILE`).
@@ -63,5 +65,7 @@ make deploy SITE=<key>
 make install-site-assets SITE=<key>
 ```
 Set the OAuth App callback to the printed `PROXY_URL/callback`, merge the PR, and you're live.
+
+> First run opens a richly described setup PR. Re-runs default to a generic "update site assets" title plus a diffstat — so for a meaningful change, describe it: `PR_TITLE="…" PR_BODY="…" make install-site-assets SITE=<key>`. If the PR is already open, those env vars refresh its title/description in place.
 
 <walkthrough-conclusion-trophy></walkthrough-conclusion-trophy>
