@@ -27,6 +27,11 @@ load_site() {
   # mappings (no load balancer). Either/both/neither. See scripts/deploy-domain.sh.
   export MCP_DOMAIN="${MCP_DOMAIN:-}"     # e.g. mcp.example.org  -> MCP server
   export AUTH_DOMAIN="${AUTH_DOMAIN:-}"   # e.g. auth.example.org -> OAuth proxy
+  # Decap bot backend: when "true", the /admin/ door is opened to any GitHub-account
+  # holder with no push access. Decap's GitHub API is pointed at the proxy's /github
+  # route, which performs writes as the phaedrus GitHub App (no fork) — a branch + PR
+  # land directly on the content repo for review. Default off; opt in per site.
+  export DECAP_BOT_BACKEND="${DECAP_BOT_BACKEND:-false}"
   # The public base URL the OAuth proxy and Decap should use: the custom auth
   # domain if set, else empty so deploy-proxy/install-site-assets fall back to
   # the proxy's own *.run.app URL (resolved at deploy time).

@@ -30,6 +30,7 @@ ask LLMS_TXT       "llms.txt path"                     "llms.txt"
 ask INITIAL_TAGS   "Initial tag vocabulary seed (comma-separated, optional)" "Strategy,People,Technology,Practice,Meta"
 ask MCP_DOMAIN     "Custom domain for the MCP server (optional, blank to skip)"   ""
 ask AUTH_DOMAIN    "Custom domain for the OAuth proxy (optional, blank to skip)"  ""
+ask DECAP_BOT_BACKEND "Open /admin/ to any GitHub user (bot commits, no fork) (true|false)" "false"
 mkdir -p sites
 cat > "$OUT" <<EOF
 SITE_NAME="${SITE_NAME}"
@@ -49,5 +50,6 @@ LLMS_TXT="${LLMS_TXT}"
 INITIAL_TAGS="${INITIAL_TAGS}"
 MCP_DOMAIN="${MCP_DOMAIN}"
 AUTH_DOMAIN="${AUTH_DOMAIN}"
+DECAP_BOT_BACKEND="${DECAP_BOT_BACKEND}"
 EOF
 echo "Wrote ${OUT} (gitignored). Next: make bootstrap SITE=${SITE_KEY}"

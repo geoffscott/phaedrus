@@ -20,8 +20,22 @@ Branch protection is **identity-based, not per-door** — GitHub can only tell "
 | Site owner via Decap | their own GitHub account, a repo **admin** | exempt — Decap "Publish" merges directly |
 | MCP / autonomous editor (Ananda) | the **GitHub App** installation (not an admin) | PR waits for a human approval |
 | Collaborators, fork PRs | non-admin accounts | PR waits for a human approval |
+| Public contributor via Decap *(bot backend on)* | their own GitHub account for login; the **GitHub App** commits | App-pushed branch + PR on the content repo — waits for a human approval |
 
-The trust model: a repo admin is trusted to publish their own edits; everything that isn't an admin — automation, outside contributors — waits for a human. Because Decap authenticates as whoever logs in, the exemption only applies to that person if they're actually a repo admin; hand `/admin/` to a non-admin and their edits get gated too.
+The trust model: a repo admin is trusted to publish their own edits; everything that isn't an admin — automation, outside contributors — waits for a human. Because Decap authenticates as whoever logs in, the admin exemption only applies to that person if they're actually a repo admin.
+
+### Opening `/admin/` to the public — bot backend
+
+phaedrus is used **primarily by site admins**; the default `/admin/` door commits as the logged-in user onto a branch **on the content repo itself**, which only works for people with push access. One site — **Kindness Flywheel**, an open-source publication — needs `/admin/` open to *any* GitHub-account holder with no push access. Setting **`DECAP_BOT_BACKEND=true`** in `sites/<site>.env` does that **without forks**:
+
+- `install-site-assets.sh` writes `api_root: $BASE_URL/github` into `admin/config.yml`, pointing Decap's GitHub API at the OAuth proxy.
+- The proxy (Spec A, "Bot backend") forwards `/user` as the human (login + commit author) but performs every repo write with the **phaedrus GitHub App installation token** — the same identity the MCP door uses. A contributor with **no push access** lands a branch + PR **directly on the content repo**; no fork, nothing for them to maintain.
+- The PR targets the protected `$GH_BRANCH`, so the **1-approval gate applies** exactly as it does to MCP and collaborator PRs. The contributor cannot merge.
+
+This is opt-in and **off by default** — admin-run sites never touch it. It is **on for `sites/kindnessflywheel.env`**. Two requirements:
+
+- The GitHub App needs **Issues: Read & write** added (beyond Contents RW + Pull requests RW) — Decap's editorial workflow creates and moves PR labels. `deploy-proxy.sh` prints this reminder when the bot backend is on.
+- `bootstrap.sh` grants the proxy's service account access to the App secrets, and `deploy-proxy.sh` mounts them. (We deliberately considered and rejected Decap "Open Authoring", which forks the repo into each contributor's account — a UX liability for non-technical authors. The bot backend keeps the whole git layer invisible.)
 
 Setup notes:
 

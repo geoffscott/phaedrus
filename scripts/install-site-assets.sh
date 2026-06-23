@@ -31,9 +31,17 @@ FIELDS_FILE="$ROOT/site-assets/admin/posts-fields.yml"
 [ -f "$ROOT/sites/${SITE}.posts-fields.yml" ] && FIELDS_FILE="$ROOT/sites/${SITE}.posts-fields.yml"
 AUTHORS_FIELDS_FILE="$ROOT/site-assets/admin/authors-fields.yml"
 [ -f "$ROOT/sites/${SITE}.authors-fields.yml" ] && AUTHORS_FIELDS_FILE="$ROOT/sites/${SITE}.authors-fields.yml"
+# Bot backend (DECAP_BOT_BACKEND): point Decap's GitHub API at the phaedrus proxy's
+# /github route so writes are performed by the phaedrus GitHub App — contributors need
+# no push access and no fork. When off, drop the placeholder line entirely.
+if [ "${DECAP_BOT_BACKEND:-false}" = true ]; then
+  API_ROOT_SED=(-e "s#__API_ROOT_LINE__#  api_root: ${URL%/}/github#")
+else
+  API_ROOT_SED=(-e "/__API_ROOT_LINE__/d")
+fi
 sed -e "s#__REPO__#${GH_OWNER}/${CONTENT_REPO}#" -e "s#__BRANCH__#${GH_BRANCH}#" \
     -e "s#__BASE_URL__#${URL}#" -e "s#__SITE_URL__#${SITE_URL}#" \
-    -e "s#__IMAGES_DIR__#${IMAGES_DIR}#" \
+    -e "s#__IMAGES_DIR__#${IMAGES_DIR}#" "${API_ROOT_SED[@]}" \
     -e "/__POSTS_FIELDS__/{" -e "r ${FIELDS_FILE}" -e "d" -e "}" \
     -e "/__AUTHORS_FIELDS__/{" -e "r ${AUTHORS_FIELDS_FILE}" -e "d" -e "}" \
     "$ROOT/site-assets/admin/config.yml.tmpl" > admin/config.yml
@@ -105,6 +113,11 @@ else
     commit -m "$COMMIT_MSG"
   git push -u origin "$BR" --force-with-lease
 fi
+# Operator override: export PR_TITLE / PR_BODY before `make install-site-assets`
+# to give a meaningful re-run a real description (the re-run default is just a
+# diffstat). Captured here before the defaults below reuse the same variable names.
+PR_TITLE_OVERRIDE="${PR_TITLE:-}"
+PR_BODY_OVERRIDE="${PR_BODY:-}"
 if [ "$FIRST_INSTALL" = yes ]; then
 PR_TITLE="phaedrus setup: Decap admin + llms.txt automation"
 PR_BODY=$(cat <<EOF
@@ -168,12 +181,22 @@ else
 PR_TITLE="chore(phaedrus): update site assets"
 PR_BODY=$(printf 'Updates phaedrus-managed site assets in place (no new setup). Changed:\n\n```\n%s\n```\n' "$DIFFSTAT")
 fi
+# Apply the operator override (if any) over whichever default was chosen above.
+PR_TITLE="${PR_TITLE_OVERRIDE:-$PR_TITLE}"
+PR_BODY="${PR_BODY_OVERRIDE:-$PR_BODY}"
 # Only an OPEN PR counts as "already exists" — a previously-merged or closed
 # PR on this same branch must not block us from opening a fresh one for the
 # next round of changes.
 OPEN_PR=$(gh pr list --head "$BR" --state open --json number -q '.[0].number' 2>/dev/null || true)
 if [ -n "$OPEN_PR" ]; then
-  echo "Open PR #${OPEN_PR} for ${BR} already exists; leaving its description as-is. Edit on GitHub if you want to refresh it."
+  # Normally leave an existing PR's description alone (the operator may have tuned
+  # it). But if PR_TITLE/PR_BODY were given, that's explicit intent — refresh in place.
+  if [ -n "${PR_TITLE_OVERRIDE}${PR_BODY_OVERRIDE}" ]; then
+    gh pr edit "$OPEN_PR" --title "$PR_TITLE" --body "$PR_BODY" >/dev/null && \
+      echo "Updated PR #${OPEN_PR} description from PR_TITLE/PR_BODY."
+  else
+    echo "Open PR #${OPEN_PR} for ${BR} already exists; leaving its description as-is. Set PR_TITLE/PR_BODY (or edit on GitHub) to refresh it."
+  fi
 else
   gh pr create --base "$GH_BRANCH" --head "$BR" --title "$PR_TITLE" --body "$PR_BODY" || \
     echo "Branch pushed; open the PR manually."

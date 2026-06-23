@@ -15,4 +15,9 @@ gcloud secrets add-iam-policy-binding "$SEC_CLIENT" --member="serviceAccount:${P
 gcloud secrets add-iam-policy-binding "$SEC_STATE"  --member="serviceAccount:${PROXY_SA}" --role=roles/secretmanager.secretAccessor
 gcloud secrets add-iam-policy-binding "$SEC_APPKEY" --member="serviceAccount:${MCP_SA}"   --role=roles/secretmanager.secretAccessor
 gcloud secrets add-iam-policy-binding "$SEC_APPID"  --member="serviceAccount:${MCP_SA}"   --role=roles/secretmanager.secretAccessor
+# The OAuth proxy also reads the GitHub App secrets when the bot backend is enabled
+# (DECAP_BOT_BACKEND): it commits as the App on behalf of contributors with no push
+# access. Harmless to grant even when the bot backend is off — unread until used.
+gcloud secrets add-iam-policy-binding "$SEC_APPKEY" --member="serviceAccount:${PROXY_SA}" --role=roles/secretmanager.secretAccessor
+gcloud secrets add-iam-policy-binding "$SEC_APPID"  --member="serviceAccount:${PROXY_SA}" --role=roles/secretmanager.secretAccessor
 echo "Bootstrap complete for ${SITE}. Next: create the GitHub OAuth App + GitHub App, then 'make secrets SITE=${SITE}'."
