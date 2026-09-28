@@ -24,13 +24,6 @@ mkdir -p admin .github/workflows scripts
 cp "$ROOT/site-assets/admin/index.html" admin/index.html
 cp "$ROOT/site-assets/workflows/check-new-tags.yml" .github/workflows/check-new-tags.yml
 cp "$ROOT/site-assets/scripts/check_new_tags.py" scripts/check_new_tags.py
-# Migrate off the old llms.txt workflow: it pushed straight to the protected
-# default branch as phaedrus-bot, which the PR review gate (below) rejects.
-# llms.txt is now a Jekyll-rendered template (seeded below), so drop both files.
-LLMS_MIGRATED=no
-for f in .github/workflows/update-llms-txt.yml scripts/gen_llms_txt.py; do
-  if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then git rm -q "$f"; LLMS_MIGRATED=yes; fi
-done
 # Canonical field schemas, or per-site override blocks if they exist.
 FIELDS_FILE="$ROOT/site-assets/admin/posts-fields.yml"
 [ -f "$ROOT/sites/${SITE}.posts-fields.yml" ] && FIELDS_FILE="$ROOT/sites/${SITE}.posts-fields.yml"
@@ -102,15 +95,13 @@ fi
 
 # Seed llms.txt once as a Jekyll-rendered Liquid template (Posts/Authors come from
 # site.posts/site.authors at build time). Site-owned from then on; never overwritten.
-# An existing file is left alone; if it's the old marker-based format (or plain
-# static text), print how to convert it instead of rewriting it.
+# An existing file is left alone; if it's plain static text, print how to adopt
+# the template instead of rewriting it.
 LLMS_NOTE=""
 if [ ! -f "$LLMS_TXT" ]; then
   mkdir -p "$(dirname "$LLMS_TXT")"
   sed "s#__PERMALINK__#/${LLMS_TXT#/}#" "$ROOT/site-assets/llms.txt.tmpl" > "$LLMS_TXT"
   echo "Seeded ${LLMS_TXT} from the phaedrus template."
-elif grep -q 'phaedrus:llms-autogen' "$LLMS_TXT"; then
-  LLMS_NOTE="${LLMS_TXT} still uses the old phaedrus:llms-autogen markers, which nothing regenerates any more. Add Jekyll front matter and replace the marker block with the Liquid loops from phaedrus site-assets/llms.txt.tmpl (Spec B §1)."
 elif [ "$(head -n1 "$LLMS_TXT")" != "---" ]; then
   LLMS_NOTE="${LLMS_TXT} has no front matter, so Jekyll serves it as static text. To keep its post list current, adopt the Liquid loops from phaedrus site-assets/llms.txt.tmpl (Spec B §1)."
 fi
@@ -192,10 +183,6 @@ EOF
 else
 PR_TITLE="chore(phaedrus): update site assets"
 PR_BODY=$(printf 'Updates phaedrus-managed site assets in place (no new setup). Changed:\n\n```\n%s\n```\n' "$DIFFSTAT")
-if [ "$LLMS_MIGRATED" = yes ]; then
-  PR_BODY+=$(printf '\n\n**llms.txt migration:** removes the old `update-llms-txt` workflow and `gen_llms_txt.py`. That workflow pushed straight to `%s`, which the PR review gate rejects. `%s` is now rendered by Jekyll from a Liquid template instead; see phaedrus Spec B §1.' "$GH_BRANCH" "$LLMS_TXT")
-  if [ -n "$LLMS_NOTE" ]; then PR_BODY+=$(printf '\n\n**Action needed:** %s' "$LLMS_NOTE"); fi
-fi
 fi
 # Apply the operator override (if any) over whichever default was chosen above.
 PR_TITLE="${PR_TITLE_OVERRIDE:-$PR_TITLE}"

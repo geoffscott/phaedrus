@@ -53,10 +53,6 @@ Setup notes:
 - **Works on classic GitHub Pages.** Plain Liquid with no plugin, so the `github-pages` plugin whitelist doesn't matter.
 - **No commits.** Nothing pushes to the default branch, so it never conflicts with the PR review gate (§0).
 
-### Migrating from the old workflow
-
-phaedrus used to regenerate a marker-bounded block of `llms.txt` with `gen_llms_txt.py` and an `update-llms-txt.yml` workflow that pushed straight to the default branch as `phaedrus-bot`. Branch protection (§0) rejects that push, and the Python generator had drifted from Jekyll's rules (it listed `_authors/` pages as posts). Re-running `install-site-assets.sh` removes both files from the content repo (`git rm`). If the site's `llms.txt` still has the `phaedrus:llms-autogen` markers, the installer doesn't rewrite it; it prints a note to add the front matter and replace the marker block with the Liquid loops from the template.
-
 ### Why `excerpt:` is the canonical hook
 
 Every post **must** declare a one-line `excerpt:` in front matter. It's the Jekyll-core teaser *and* the SEO meta description (jekyll-seo-tag falls back `description` → `excerpt` → `site.description`), and it's the note the `llms.txt` template shows for each post (after `description`, if set). A post may add an optional `description:` only when the SEO meta text must differ from the excerpt. `install-site-assets.sh` prints a reminder to backfill `excerpt:` on existing posts before the first merge.
