@@ -38,7 +38,7 @@ Content stays in your existing Jekyll repo on GitHub. See [`docs/spec-a-oauth-pr
 5. Create the GitHub OAuth App + GitHub App (the two manual gates — see tutorial), then:
    `make secrets SITE=<key>`       # pushes the credentials into Secret Manager
 6. `make deploy SITE=<key>`        # deploys the OAuth proxy + MCP server (+ custom domain mappings if MCP_DOMAIN/AUTH_DOMAIN are set)
-7. `make install-site-assets SITE=<key>`  # opens a PR adding Decap + llms.txt automation to your content repo
+7. `make install-site-assets SITE=<key>`  # opens a PR adding Decap + the llms.txt template to your content repo
 
 Every target is idempotent — safe to re-run.
 

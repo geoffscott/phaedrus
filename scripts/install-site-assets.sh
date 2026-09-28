@@ -22,10 +22,15 @@ else
 fi
 mkdir -p admin .github/workflows scripts
 cp "$ROOT/site-assets/admin/index.html" admin/index.html
-cp "$ROOT/site-assets/workflows/update-llms-txt.yml" .github/workflows/update-llms-txt.yml
 cp "$ROOT/site-assets/workflows/check-new-tags.yml" .github/workflows/check-new-tags.yml
-cp "$ROOT/site-assets/scripts/gen_llms_txt.py" scripts/gen_llms_txt.py
 cp "$ROOT/site-assets/scripts/check_new_tags.py" scripts/check_new_tags.py
+# Migrate off the old llms.txt workflow: it pushed straight to the protected
+# default branch as phaedrus-bot, which the PR review gate (below) rejects.
+# llms.txt is now a Jekyll-rendered template (seeded below), so drop both files.
+LLMS_MIGRATED=no
+for f in .github/workflows/update-llms-txt.yml scripts/gen_llms_txt.py; do
+  if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then git rm -q "$f"; LLMS_MIGRATED=yes; fi
+done
 # Canonical field schemas, or per-site override blocks if they exist.
 FIELDS_FILE="$ROOT/site-assets/admin/posts-fields.yml"
 [ -f "$ROOT/sites/${SITE}.posts-fields.yml" ] && FIELDS_FILE="$ROOT/sites/${SITE}.posts-fields.yml"
@@ -94,6 +99,21 @@ PY
   fi
   echo "Seeded _data/tags.yml ($(grep -c '  - name:' _data/tags.yml) tag(s))."
 fi
+
+# Seed llms.txt once as a Jekyll-rendered Liquid template (Posts/Authors come from
+# site.posts/site.authors at build time). Site-owned from then on; never overwritten.
+# An existing file is left alone; if it's the old marker-based format (or plain
+# static text), print how to convert it instead of rewriting it.
+LLMS_NOTE=""
+if [ ! -f "$LLMS_TXT" ]; then
+  mkdir -p "$(dirname "$LLMS_TXT")"
+  sed "s#__PERMALINK__#/${LLMS_TXT#/}#" "$ROOT/site-assets/llms.txt.tmpl" > "$LLMS_TXT"
+  echo "Seeded ${LLMS_TXT} from the phaedrus template."
+elif grep -q 'phaedrus:llms-autogen' "$LLMS_TXT"; then
+  LLMS_NOTE="${LLMS_TXT} still uses the old phaedrus:llms-autogen markers, which nothing regenerates any more. Add Jekyll front matter and replace the marker block with the Liquid loops from phaedrus site-assets/llms.txt.tmpl (Spec B §1)."
+elif [ "$(head -n1 "$LLMS_TXT")" != "---" ]; then
+  LLMS_NOTE="${LLMS_TXT} has no front matter, so Jekyll serves it as static text. To keep its post list current, adopt the Liquid loops from phaedrus site-assets/llms.txt.tmpl (Spec B §1)."
+fi
 git add -A
 # Distinguish a first install (core admin files newly added) from a routine
 # re-run (e.g. just a base_url change) so the commit + PR describe what actually
@@ -101,7 +121,7 @@ git add -A
 DIFFSTAT=$(git diff --cached --stat)
 if git diff --cached --name-status | grep -qE '^A[[:space:]]+admin/index\.html$'; then
   FIRST_INSTALL=yes
-  COMMIT_MSG="chore: add phaedrus (Decap admin + llms.txt automation)"
+  COMMIT_MSG="chore: add phaedrus (Decap admin + llms.txt template)"
 else
   FIRST_INSTALL=no
   COMMIT_MSG="chore(phaedrus): update site assets"
@@ -119,7 +139,7 @@ fi
 PR_TITLE_OVERRIDE="${PR_TITLE:-}"
 PR_BODY_OVERRIDE="${PR_BODY:-}"
 if [ "$FIRST_INSTALL" = yes ]; then
-PR_TITLE="phaedrus setup: Decap admin + llms.txt automation"
+PR_TITLE="phaedrus setup: Decap admin + llms.txt template"
 PR_BODY=$(cat <<EOF
 Wires this site into [phaedrus](https://github.com/geoffscott/phaedrus) — a small toolkit that converges three authoring doors on a single PR review gate.
 
@@ -133,9 +153,8 @@ Wires this site into [phaedrus](https://github.com/geoffscott/phaedrus) — a sm
   - Posts schema: canonical Jekyll + jekyll-seo-tag fields (title, date, author, excerpt, tags, body)
   - Tag vocabulary: \`_data/tags.yml\` (curated; the Tags field selects from it — add new tags here in a PR)
 - **\`_data/tags.yml\`** — the curated tag vocabulary (seeded from existing posts on first install). Single source of truth shared by the CMS Tags picker, the MCP server, and the check-new-tags PR check.
-- **\`.github/workflows/update-llms-txt.yml\`** — regenerates \`${LLMS_TXT}\` on every push to \`${GH_BRANCH}\` that touches posts, authors, the site config, or the generator itself. Commits back with \`phaedrus-bot\` as author; no-op when already current.
+- **\`${LLMS_TXT}\`** (only if the site didn't have one) — a Liquid template Jekyll renders at build time. The Posts and Authors lists come from \`site.posts\` / \`site.authors\`, so they're always current with no workflow or bot commit. Site-owned from here on: edit the prose freely; phaedrus never overwrites it.
 - **\`.github/workflows/check-new-tags.yml\`** — runs on every PR touching \`_posts/**\`. If the PR uses a tag that isn't in \`_data/tags.yml\`, posts a sticky comment listing the new tags. **Non-blocking** — just gives reviewers a heads-up so they can spot typos / synonyms before the vocabulary quietly grows.
-- **\`scripts/gen_llms_txt.py\`** — site-agnostic generator. Reads this repo's own \`_config.yml\` for the permalink template and any extra collections; falls back to Jekyll defaults.
 - **\`scripts/check_new_tags.py\`** — the detector used by the check-new-tags workflow above.
 
 ## What this enables
@@ -150,23 +169,16 @@ Once merged, all three authoring doors land as PRs on \`${GH_BRANCH}\` for human
 
 ## Operator action — before merging
 
-1. **Add the autogen markers to \`${LLMS_TXT}\`.** Anywhere in the file:
+1. **Fill in the \`${LLMS_TXT}\` preamble.** Replace the \`{% comment %}\` placeholder with what the site is, who writes it, license, contact. If the site already had an \`${LLMS_TXT}\`, it was left untouched — see the installer output for how to adopt the template's Liquid loops.
 
-   \`\`\`
-   <!-- phaedrus:llms-autogen:start -->
-   <!-- phaedrus:llms-autogen:end -->
-   \`\`\`
-
-   Everything between is owned by phaedrus and gets regenerated; everything outside is preserved byte-for-byte.
-
-2. **Backfill \`excerpt:\` in existing posts' front matter** (optional but recommended). That one-liner shows up in \`${LLMS_TXT}\` bullets and feeds the SEO meta description (seo-tag falls back \`description\`→\`excerpt\`→\`site.description\`). Posts without it become bare-title bullets.
+2. **Backfill \`excerpt:\` in existing posts' front matter** (optional but recommended). That one-liner shows up in \`${LLMS_TXT}\` bullets and feeds the SEO meta description (seo-tag falls back \`description\`→\`excerpt\`→\`site.description\`). Posts without it fall back to Jekyll's auto-excerpt (the first paragraph), which is often a poor one-liner.
 
 3. **Review the seeded \`_data/tags.yml\`.** It was populated from tags already used in your posts; tidy up any typos/synonyms before merging, since this becomes the curated vocabulary.
 
 ## After merging
 
 - Visit \`${SITE_URL%/}/admin/\` — Decap should hand you off through the OAuth proxy at \`${URL}\` and back.
-- The next push to \`${GH_BRANCH}\` will trigger the **Update llms.txt** workflow under Actions; expect green.
+- Visit \`${SITE_URL%/}/${LLMS_TXT#/}\` — it should list every published post (and author, if the site has an \`authors\` collection).
 
 ## Re-running this PR
 
@@ -180,6 +192,10 @@ EOF
 else
 PR_TITLE="chore(phaedrus): update site assets"
 PR_BODY=$(printf 'Updates phaedrus-managed site assets in place (no new setup). Changed:\n\n```\n%s\n```\n' "$DIFFSTAT")
+if [ "$LLMS_MIGRATED" = yes ]; then
+  PR_BODY+=$(printf '\n\n**llms.txt migration:** removes the old `update-llms-txt` workflow and `gen_llms_txt.py`. That workflow pushed straight to `%s`, which the PR review gate rejects. `%s` is now rendered by Jekyll from a Liquid template instead; see phaedrus Spec B §1.' "$GH_BRANCH" "$LLMS_TXT")
+  if [ -n "$LLMS_NOTE" ]; then PR_BODY+=$(printf '\n\n**Action needed:** %s' "$LLMS_NOTE"); fi
+fi
 fi
 # Apply the operator override (if any) over whichever default was chosen above.
 PR_TITLE="${PR_TITLE_OVERRIDE:-$PR_TITLE}"
@@ -233,4 +249,5 @@ else
   echo "  Set by hand: Settings -> Branches -> protect ${GH_BRANCH}, require 1 approval, do NOT include admins." >&2
 fi
 
-echo "NOTE: add the AUTOGEN markers to ${LLMS_TXT} and backfill post 'excerpt:' before first merge (Spec B §1.1)."
+if [ -n "$LLMS_NOTE" ]; then echo "NOTE: $LLMS_NOTE"; fi
+echo "NOTE: backfill post 'excerpt:' before first merge; it's the note shown per post in ${LLMS_TXT} (Spec B §1)."
