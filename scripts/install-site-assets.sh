@@ -204,7 +204,11 @@ PR_BODY="${PR_BODY_OVERRIDE:-$PR_BODY}"
 # PR on this same branch must not block us from opening a fresh one for the
 # next round of changes.
 OPEN_PR=$(gh pr list --head "$BR" --state open --json number -q '.[0].number' 2>/dev/null || true)
-if [ -n "$OPEN_PR" ]; then
+if [ -z "$OPEN_PR" ] && [ "$(git rev-list --count "origin/${GH_BRANCH}..HEAD")" -eq 0 ]; then
+  # Nothing committed this run and no earlier unmerged commits on the branch:
+  # there is nothing to propose, so don't ask GitHub for an empty PR.
+  echo "No changes to propose; skipping PR."
+elif [ -n "$OPEN_PR" ]; then
   # Normally leave an existing PR's description alone (the operator may have tuned
   # it). But if PR_TITLE/PR_BODY were given, that's explicit intent — refresh in place.
   if [ -n "${PR_TITLE_OVERRIDE}${PR_BODY_OVERRIDE}" ]; then
