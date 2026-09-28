@@ -1,0 +1,22 @@
+---
+# phaedrus llms.txt template — seeded once by install-site-assets.sh, site-owned
+# from then on (the installer never overwrites it). Rendered by Jekyll at build
+# time: Posts and Authors come from site.posts / site.authors, so they are always
+# current with no workflow or bot commit. Edit the prose by hand.
+layout: null
+permalink: __PERMALINK__
+sitemap: false
+search: false
+---
+# {{ site.title }}
+{% if site.description %}
+> {{ site.description | strip_html | normalize_whitespace }}
+{% endif %}{% comment %}Add hand-written context here: what the site is, who writes it, license, contact.{% endcomment %}
+## Posts
+
+{% for post in site.posts %}{% assign note = post.description | default: post.excerpt | strip_html | normalize_whitespace %}- [{{ post.title }}]({{ post.url | absolute_url }}){% if note != "" %}: {{ note }}{% endif %}
+{% endfor %}{% if site.authors.size > 0 %}
+## Authors
+
+{% assign authors = site.authors | sort: "title" %}{% for author in authors %}{% assign profile = site.data.authors[author.title] %}{% assign note = profile.bio | default: author.description | strip_html | normalize_whitespace %}- [{{ author.title }}]({{ author.url | absolute_url }}){% if note != "" %}: {{ note }}{% endif %}
+{% endfor %}{% endif %}
